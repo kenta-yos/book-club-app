@@ -9,14 +9,7 @@ st.set_page_config(page_title="読書会アプリ", layout="wide")
 
 # API・スプレッドシート接続
 try:
-    # 秘密鍵の改行コード問題だけを事前に解決しておく
-    # (Secretsに書き込まれた \n を本物の改行に変換)
-    if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
-        # ここで直接書き換えることはできないため、接続時に自動で読み込まれるのを待ちます
-        pass
-
-    # 【最終回答】URLも認証情報も、すべてSecretsから自動で読み込ませる形式に変更
-    # 引数には何も渡さないのが、このエラーを避ける唯一の確実な方法です
+    # 最も標準的な接続方法に戻します
     conn = st.connection("gsheets", type=GSheetsConnection)
     
     # Gemini設定
@@ -24,11 +17,12 @@ try:
     model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
     st.error(f"接続設定エラー: {e}")
+    st.info("Secretsの形式、またはAPIキーを確認してください。")
     st.stop()
 
 # --- データ読み込み ---
 def load_data():
-    # スプレッドシートの「ワークシート名」が正しいか確認してください
+    # シート名はご自身のものに合わせてください
     df_books = conn.read(worksheet="booklist", ttl=5)
     df_books.columns = df_books.columns.str.strip()
     
@@ -40,6 +34,8 @@ def load_data():
     return df_books, df_votes
 
 df_books, df_votes = load_data()
+
+# --- 以下、UIコード（以前のものと同じ） ---
 
 # --- メイン画面 ---
 tab_list, tab_vote = st.tabs(["📖 Bookリスト", "🗳️ 投票・集計"])
