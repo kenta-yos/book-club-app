@@ -21,12 +21,8 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # 1. スプレッドシート接続設定
-# Secretsから接続情報を取得し、秘密鍵の改行コードを補正する
-creds_dict = dict(st.secrets["connections"]["gsheets"])
-if "private_key" in creds_dict:
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-
-conn = st.connection("gsheets", type=GSheetsConnection, **creds_dict)
+# 公式の推奨設定に合わせ、Secretsを直接参照して接続します
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 # 2. データ読み込み関数
 def load_data():
@@ -39,7 +35,6 @@ def load_data():
         df_votes = conn.read(worksheet="votes", ttl=0)
         df_votes.columns = df_votes.columns.str.strip()
     except:
-        # シートが空または存在しない場合の初期化
         df_votes = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
     
     return df_books, df_votes
@@ -49,7 +44,7 @@ df_books, df_votes = load_data()
 # 3. 書き込み（更新）用関数
 def save_votes(df):
     conn.update(worksheet="votes", data=df)
-    st.cache_data.clear() # キャッシュをクリアして最新を反映
+    st.cache_data.clear() # キャッシュをクリア
     st.rerun()
 
 # 自分の投票状況をブラウザのセッション内で保持
@@ -109,14 +104,14 @@ with tab_vote:
     
     with reset_col1:
         st.write("") # レイアウト微調整用の余白
-        if st.button("得点リセット", help="選出された本は残し、得点（+1/+2）だけを全消去します"):
+        if st.button("得点リセット", help="得点（+1/+2）だけを全消去します"):
             reset_df = df_votes[df_votes["アクション"] == "選出"]
             st.session_state.my_votes = {}
             save_votes(reset_df)
             
     with reset_col2:
         st.write("") 
-        if st.button("全データ消去", type="primary", help="選出された本も含め、すべてのデータをリセットします"):
+        if st.button("全データ消去", type="primary", help="すべてのデータをリセットします"):
             st.session_state.my_votes = {}
             save_votes(pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"]))
 
@@ -131,7 +126,7 @@ with tab_vote:
     
     st.divider()
     
-    # 2. 投票アクションエリア
+    # 2. 投票エリア
     nominated = df_votes[df_votes["アクション"] == "選出"]
     
     if nominated.empty:
@@ -164,7 +159,6 @@ with tab_vote:
                     save_votes(pd.concat([df_votes, new_v], ignore_index=True))
 
                 if v_col3.button("取消", key=f"rm_{b_title}"):
-                    # その本に対する「投票」データを削除
                     removed_df = df_votes[~((df_votes["書籍タイトル"] == b_title) & (df_votes["アクション"] == "投票"))]
                     st.session_state.my_votes[b_title] = 0
                     save_votes(removed_df)
