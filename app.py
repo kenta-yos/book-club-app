@@ -8,7 +8,7 @@ st.set_page_config(page_title="読書会アプリ", layout="wide")
 
 # 1. 接続設定
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    conn = st.connection("connections.gsheets", type=GSheetsConnection)
     genai.configure(api_key=st.secrets["gemini"]["api_key"])
     model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
