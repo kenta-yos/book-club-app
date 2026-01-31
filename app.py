@@ -28,25 +28,42 @@ if "user_name" not in st.session_state: st.session_state.user_name = ""
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def fetch_data():
+    """データを取得。失敗してもアプリが壊れないよう空の構造を維持する。"""
+    # デフォルトの構造
+    empty_books = pd.DataFrame(columns=["書籍名", "著者名", "カテゴリ", "URL"])
+    empty_votes = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
+    
     try:
+        # Booklistの取得
         df_b = conn.read(worksheet="booklist", ttl=120)
+        if df_b is not None and not df_b.empty:
+            df_b.columns = df_b.columns.str.strip()
+        else:
+            df_b = empty_books
+            
+        # Votesの取得
         df_v = conn.read(worksheet="votes", ttl=0)
-        df_b.columns = df_b.columns.str.strip()
-        df_v = df_v if not df_v.empty else pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
-        df_v.columns = df_v.columns.str.strip()
+        if df_v is not None and not df_v.empty:
+            df_v.columns = df_v.columns.str.strip()
+        else:
+            df_v = empty_votes
+            
         return df_b, df_v
-    except:
-        return pd.DataFrame(), pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
+    except Exception as e:
+        # エラー時はログを出さず、空の枠組みだけ返して画面崩れを防ぐ
+        return empty_books, empty_votes
 
 def save_and_refresh(df):
     try:
         conn.update(worksheet="votes", data=df)
         st.cache_data.clear()
-        time.sleep(1)
+        time.sleep(1.2)
         st.rerun()
     except:
+        st.cache_data.clear()
         st.rerun()
 
+# データのロード（バリデーション付き）
 df_books, df_votes = fetch_data()
 
 # --- TOP: NAME ENTRY ---
@@ -70,7 +87,7 @@ with c_nav2:
         st.session_state.page = "vote"
         st.rerun()
 with c_nav3:
-    if st.button("🔄 更新", key="sync"):
+    if st.button("🔄 最新の状態に更新", key="sync"):
         st.cache_data.clear()
         st.rerun()
 
@@ -79,16 +96,27 @@ st.divider()
 # --- PAGE 1: BOOK LIST ---
 if st.session_state.page == "list":
     st.header("Book List")
-    if not df_books.empty:
-        cats = ["すべて"] + list(df_books["カテゴリ"].unique())
+    
+    if df_books.empty:
+        st.warning("Bookリストが読み込めませんでした。スプレッドシートの'booklist'シートを確認するか、更新ボタンを押してください。")
+    else:
+        # カテゴリの取得（欠損値を除去）
+        all_categories = df_books["カテゴリ"].dropna().unique().tolist()
+        cats = ["すべて"] + all_categories
         selected_cat = st.selectbox("カテゴリを絞り込む", cats, label_visibility="collapsed")
+        
         display_df = df_books if selected_cat == "すべて" else df_books[df_books["カテゴリ"] == selected_cat]
 
         for cat_name in display_df["カテゴリ"].unique():
+            if pd.isna(cat_name): continue
             st.markdown(f"<div style='margin: 25px 0 10px 0; color:#333; font-weight:bold;'>📂 {cat_name}</div>", unsafe_allow_html=True)
             cat_books = display_df[display_df["カテゴリ"] == cat_name]
+            
             for _, row in cat_books.iterrows():
-                title, author, url = row.get("書籍名", "無題"), row.get("著者名", "不明"), row.get("URL")
+                title = row.get("書籍名", "無題")
+                author = row.get("著者名", "不明")
+                url = row.get("URL")
+                
                 c1, c2, c3 = st.columns([4, 0.8, 0.8])
                 with c1:
                     st.markdown(f"<div class='title-text'>{title}</div><div class='author-text'>{author}</div>", unsafe_allow_html=True)
@@ -105,34 +133,29 @@ if st.session_state.page == "list":
 else:
     st.subheader("🏆 Ranking")
     if not df_votes.empty:
-        # ポイントを数値化
         df_v = df_votes.copy()
         df_v["ポイント"] = pd.to_numeric(df_v["ポイント"], errors='coerce').fillna(0)
-        
-        # 投票データのみ抽出
         vote_data = df_v[df_v["アクション"] == "投票"]
         
-        # 書籍ごとの合計点と内訳を作成
         summary_list = []
-        # 全ての選出された書籍をベースにする
-        all_nominated = df_v[df_v["アクション"] == "選出"]["書籍タイトル"].unique()
+        # 選出された本を確実に取得
+        nominated_titles = df_v[df_v["アクション"] == "選出"]["書籍タイトル"].unique()
         
-        for title in all_nominated:
-            # その本への投票を抽出
+        for title in nominated_titles:
             b_votes = vote_data[vote_data["書籍タイトル"] == title]
             total_p = b_votes["ポイント"].sum()
-            
-            # 内訳文字列を作成 例: "山田(2), 田中(1)"
             details = ", ".join([f"{r['ユーザー名']}({int(r['ポイント'])})" for _, r in b_votes.iterrows()])
-            
             summary_list.append({
                 "書籍タイトル": title,
                 "合計点": total_p,
                 "投票者内訳": details if details else "-"
             })
             
-        summary_df = pd.DataFrame(summary_list).sort_values("合計点", ascending=False)
-        st.dataframe(summary_df, hide_index=True, use_container_width=True)
+        if summary_list:
+            summary_df = pd.DataFrame(summary_list).sort_values("合計点", ascending=False)
+            st.dataframe(summary_df, hide_index=True, use_container_width=True)
+        else:
+            st.info("現在、選出されている本はありません。")
     
     st.divider()
     
@@ -146,6 +169,7 @@ else:
         save_and_refresh(df_votes[~((df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票"))])
 
     st.write("")
+    # 表示順を維持するために再取得
     nominated_rows = df_votes[df_votes["アクション"] == "選出"]
     
     if nominated_rows.empty:
@@ -159,6 +183,7 @@ else:
             with vc1:
                 st.markdown(f"<div class='title-text'>{b_title}</div><div class='author-text'>推薦：{n_row['ユーザー名']}さん</div>", unsafe_allow_html=True)
             
+            # 投票ロジックの安定化
             d1 = (1 in voted_titles.values()) or (this_p == 2)
             with vc2:
                 if st.button(f"+1", key=f"v1_{b_title}", type="primary" if this_p==1 else "secondary", disabled=d1, use_container_width=True):
