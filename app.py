@@ -24,46 +24,25 @@ def load_data():
     try:
         df_books = conn.read(worksheet="booklist", ttl=1)
         df_books.columns = df_books.columns.str.strip()
-        
         df_votes = conn.read(worksheet="votes", ttl=1)
         if df_votes.empty:
-            return df_books, pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント", "UID"])
-        
+            df_votes = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
         df_votes.columns = df_votes.columns.str.strip()
         return df_books, df_votes
     except:
-        return pd.DataFrame(), pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント", "UID"])
+        return pd.DataFrame(), pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
 
 df_books, df_votes = load_data()
 
 # 3. 書き込み用関数
 def save_votes(df):
     try:
-        cols = ["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント", "UID"]
-        if df.empty:
-            df = pd.DataFrame(columns=cols)
-        else:
-            for c in cols:
-                if c not in df.columns: df[c] = None
-            df = df[cols]
-            
         conn.update(worksheet="votes", data=df)
         st.cache_data.clear()
-        time.sleep(1.5) 
+        time.sleep(1) 
         st.rerun()
-    except Exception as e:
-        st.error("保存に失敗しました。再操作してください。")
-
-# ユーザー識別用
-if "user_id" not in st.session_state:
-    st.session_state.user_id = datetime.now().strftime("%Y%m%d%H%M%S")
-
-# 現在の自分の投票済み状況を確認（セッションをまたいでもデータから判定）
-# UIDとアクションが「投票」のデータを抽出
-my_current_votes = df_votes[(df_votes["UID"].astype(str) == st.session_state.user_id) & (df_votes["アクション"] == "投票")]
-# すでに＋1、＋2をそれぞれ使ったかどうかのフラグ
-has_voted_1 = 1 in my_current_votes["ポイント"].astype(float).values
-has_voted_2 = 2 in my_current_votes["ポイント"].astype(float).values
+    except:
+        st.error("保存に失敗しました。時間をおいて再送してください。")
 
 # --- メイン画面 ---
 tab_list, tab_vote = st.tabs(["📖 Bookリスト", "🗳️ 投票・集計"])
@@ -83,77 +62,82 @@ with tab_list:
                 title = row.get("書籍名", "無題")
                 with st.expander(f"📔 {title}"):
                     with st.form(key=f"form_{title}"):
-                        u_name = st.text_input("名前", key=f"name_{title}")
-                        if st.form_submit_button("選出"):
+                        u_name = st.text_input("あなたの名前（必須）", key=f"n_{title}")
+                        if st.form_submit_button("候補に選ぶ"):
                             if u_name:
-                                new_row = pd.DataFrame([{
-                                    "日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                    "アクション": "選出", "書籍タイトル": title, "ユーザー名": u_name, "ポイント": 0, "UID": st.session_state.user_id
-                                }])
+                                new_row = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "選出", "書籍タイトル": title, "ユーザー名": u_name, "ポイント": 0}])
                                 save_votes(pd.concat([df_votes, new_row], ignore_index=True))
+                            else:
+                                st.error("名前を入力してください")
 
 # --- 【2】投票・集計画面 ---
 with tab_vote:
-    h_col, a_col = st.columns([2, 3])
-    with h_col: st.header("投票状況")
-    
-    with a_col:
-        st.write("")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            if st.button("自分の投票をクリア"):
-                df_temp = df_votes.copy()
-                df_temp["UID"] = df_temp["UID"].astype(str).str.strip()
-                target_uid = str(st.session_state.user_id).strip()
-                
-                # 自分の「投票」アクション行のみを除外して保存
-                filtered_df = df_temp[~((df_temp["アクション"] == "投票") & (df_temp["UID"] == target_uid))]
-                save_votes(filtered_df)
-        with c2:
-            if st.button("得点リセット"):
-                save_votes(df_votes[df_votes["アクション"] == "選出"])
-        with c3:
-            if st.button("全リセット", type="primary"):
-                save_votes(pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント", "UID"]))
+    # ユーザー認証（名前で判定）
+    st.subheader("👤 投票者ログイン")
+    my_name = st.text_input("あなたの名前を入力してください（投票やクリアに使用）", key="my_login_name")
+
+    # 管理用ボタン（名前不要）
+    admin_col1, admin_col2 = st.columns(2)
+    with admin_col1:
+        if st.button("全得点リセット"):
+            save_votes(df_votes[df_votes["アクション"] == "選出"])
+    with admin_col2:
+        if st.button("全データ消去", type="primary"):
+            save_votes(pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"]))
 
     st.divider()
-    
-    # ランキング表示（自分の投票をクリアした後はここから数値が消える）
+
+    # ランキング
     if not df_votes.empty:
-        df_summary = df_votes.copy()
-        df_summary["ポイント"] = pd.to_numeric(df_summary["ポイント"], errors='coerce').fillna(0)
-        summary = df_summary.groupby("書籍タイトル")["ポイント"].sum().reset_index().sort_values("ポイント", ascending=False)
+        df_v = df_votes.copy()
+        df_v["ポイント"] = pd.to_numeric(df_v["ポイント"], errors='coerce').fillna(0)
+        summary = df_v.groupby("書籍タイトル")["ポイント"].sum().reset_index().sort_values("ポイント", ascending=False)
         st.subheader("🏆 ランキング")
         st.dataframe(summary, hide_index=True, use_container_width=True)
-    
+
     st.divider()
-    
-    nominated = df_votes[df_votes["アクション"] == "選出"]
-    if nominated.empty:
-        st.info("候補がありません。")
+
+    # 投票処理
+    if not my_name:
+        st.info("名前を入力すると投票・クリアができるようになります。")
     else:
-        st.subheader("🗳️ 投票（+1, +2 各1回まで）")
+        # 自分の今の投票状況をスキャン
+        my_v_data = df_votes[(df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票")]
+        voted_1_book = my_v_data[my_v_data["ポイント"].astype(float) == 1]["書籍タイトル"].tolist()
+        voted_2_book = my_v_data[my_v_data["ポイント"].astype(float) == 2]["書籍タイトル"].tolist()
+        
+        has_voted_1 = len(voted_1_book) > 0
+        has_voted_2 = len(voted_2_book) > 0
+
+        # クリアボタン
+        if st.button(f"{my_name}さんの投票をすべて取り消す"):
+            # 自分かつ「投票」アクションの行を完全に削除
+            filtered_df = df_votes[~((df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票"))]
+            save_votes(filtered_df)
+
+        st.subheader("🗳️ 投票エリア")
+        nominated = df_votes[df_votes["アクション"] == "選出"]
+        
         for _, n_row in nominated.iterrows():
             b_title = n_row["書籍タイトル"]
             
-            # この本に自分が何点入れているか確認
-            this_book_my_vote = my_current_votes[my_current_votes["書籍タイトル"] == b_title]
-            my_voted_p = this_book_my_vote["ポイント"].astype(float).sum() if not this_book_my_vote.empty else 0
+            # この本に自分が何点入れているか
+            this_p = 0
+            if b_title in voted_1_book: this_p = 1
+            if b_title in voted_2_book: this_p = 2
             
-            r_col1, r_col2, r_col3 = st.columns([3, 0.6, 0.6])
-            r_col1.markdown(f"**{b_title}** <small>({n_row['ユーザー名']}さん選出)</small>", unsafe_allow_html=True)
+            c1, c2, c3 = st.columns([3, 0.6, 0.6])
+            c1.markdown(f"**{b_title}** <small>({n_row['ユーザー名']}さん選出)</small>", unsafe_allow_html=True)
             
-            # ＋1ボタンの活性/非活性判定
-            # 1. すでにどこかの本で+1を使っている OR 2. この本ですでに+2を使っている
-            disable_1 = has_voted_1 or (my_voted_p == 2)
-            if r_col2.button(f"+1", key=f"v1_{b_title}", type="primary" if my_voted_p==1 else "secondary", disabled=disable_1):
-                new_v = pd.DataFrame([{"日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "アクション": "投票", "書籍タイトル": b_title, "ユーザー名": "匿名", "ポイント": 1, "UID": st.session_state.user_id}])
+            # +1ボタンの制御: すでにどこかで+1を使っている OR この本で+2を使っているなら無効
+            d1 = has_voted_1 or (this_p == 2)
+            if c2.button(f"+1", key=f"p1_{b_title}", type="primary" if this_p==1 else "secondary", disabled=d1):
+                new_v = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "投票", "書籍タイトル": b_title, "ユーザー名": my_name, "ポイント": 1}])
                 save_votes(pd.concat([df_votes, new_v], ignore_index=True))
-            
-            # ＋2ボタンの活性/非活性判定
-            # 1. すでにどこかの本で+2を使っている OR 2. この本ですでに+1を使っている
-            disable_2 = has_voted_2 or (my_voted_p == 1)
-            if r_col3.button(f"+2", key=f"v2_{b_title}", type="primary" if my_voted_p==2 else "secondary", disabled=disable_2):
-                new_v = pd.DataFrame([{"日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "アクション": "投票", "書籍タイトル": b_title, "ユーザー名": "匿名", "ポイント": 2, "UID": st.session_state.user_id}])
+
+            # +2ボタンの制御: すでにどこかで+2を使っている OR この本で+1を使っているなら無効
+            d2 = has_voted_2 or (this_p == 1)
+            if c3.button(f"+2", key=f"p2_{b_title}", type="primary" if this_p==2 else "secondary", disabled=d2):
+                new_v = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "投票", "書籍タイトル": b_title, "ユーザー名": my_name, "ポイント": 2}])
                 save_votes(pd.concat([df_votes, new_v], ignore_index=True))
             st.markdown("---")
