@@ -9,15 +9,14 @@ st.set_page_config(page_title="読書会アプリ", layout="wide")
 
 # API・スプレッドシート接続
 try:
-    # 1. Secretsから中身をコピー
+    # 1. Secretsから中身を辞書として取得
     creds_dict = dict(st.secrets["connections"]["gsheets"])
     
-    # 2. 秘密鍵の改行を整形（これが無いとGoogleが鍵を拒否します）
+    # 2. 秘密鍵の改行コードを整形
     if "private_key" in creds_dict:
         creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
     
-    # 3. 【解決策】spreadsheet=spreadsheet_url を消し、
-    # 全てを **creds_dict (中身にspreadsheetが含まれている) に任せる
+    # 3. 【解決策】引数に spreadsheet=... を含めず、辞書(**creds_dict)の中身として渡す
     conn = st.connection("gsheets", type=GSheetsConnection, **creds_dict)
     
     # Gemini設定
