@@ -9,12 +9,15 @@ st.set_page_config(page_title="読書会アプリ", layout="wide")
 
 # API・スプレッドシート接続
 try:
-    # Secretsから接続情報を取得し、private_keyの改行文字を本物の改行に変換
-    creds_dict = dict(st.secrets["connections"]["gsheets"])
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    # 1. Secretsから中身をコピー
+    creds = dict(st.secrets["connections"]["gsheets"])
     
-    # 【修正ポイント】type=GSheetsConnection を外し、文字列としての type を辞書から渡す
-    conn = st.connection("gsheets", **creds_dict)
+    # 2. 秘密鍵の改行を修正
+    if "private_key" in creds:
+        creds["private_key"] = creds["private_key"].replace("\\n", "\n")
+    
+    # 3. 【重要】Streamlitのtypeと競合しないよう、中身を直接渡す
+    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
     
     # Gemini設定
     genai.configure(api_key=st.secrets["gemini"]["api_key"])
