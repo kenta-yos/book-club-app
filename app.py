@@ -7,13 +7,23 @@ import time
 # --- 初期設定 ---
 st.set_page_config(page_title="読書会アプリ", layout="wide")
 
+# CSSで余白を極限まで削る
 st.markdown("""
     <style>
-    .stButton button { border-radius: 5px; width: 100%; }
+    /* 1行の余白を最小化 */
+    [data-testid="column"] { padding: 0px 5px !important; }
+    div[data-testid="stVerticalBlock"] > div { margin-bottom: -10px !important; }
+    
+    /* ボタンと入力欄のサイズ調整 */
+    .stButton button { border-radius: 4px; width: 100%; height: 32px !important; padding: 0px !important; font-size: 14px !important; }
+    div[data-testid="stTextInput"] > div > div > input { height: 32px !important; font-size: 14px !important; }
+    
+    /* 水平線の余白を調整 */
+    hr { margin: 5px 0 !important; border: 0.1px solid #f0f2f6; }
+    
+    /* 全体のコンテナ幅 */
+    .main .block-container { padding-top: 1.5rem; max-width: 1000px; }
     [data-testid="stSidebar"] { display: none; }
-    .main .block-container { padding-top: 1.5rem; max-width: 1100px; }
-    hr { margin: 0.5rem 0; border: 0.1px solid #f0f2f6; }
-    div[data-testid="stTextInput"] > div > div > input { height: 45px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -33,19 +43,18 @@ def load_data():
 
 def save_votes(df):
     try:
-        with st.spinner("反映中..."):
+        with st.spinner("更新中..."):
             conn.update(worksheet="votes", data=df)
             st.cache_data.clear()
             time.sleep(1.2) 
             st.rerun()
     except:
-        st.error("保存失敗。再試行してください。")
+        st.error("保存失敗")
 
 df_books, df_votes = load_data()
-
 tab_list, tab_vote = st.tabs(["📖 Bookリスト", "🗳️ 投票・集計"])
 
-# --- 【1】Bookリスト画面 ---
+# --- 【1】Bookリスト画面（コンパクト版） ---
 with tab_list:
     st.header("候補に登録")
     if not df_books.empty:
@@ -54,13 +63,14 @@ with tab_list:
         display_df = df_books if selected_cat == "すべて" else df_books[df_books["カテゴリ"] == selected_cat]
 
         for cat_name in display_df["カテゴリ"].unique():
-            st.subheader(f"📂 {cat_name}")
+            st.markdown(f"### 📂 {cat_name}")
             cat_books = display_df[display_df["カテゴリ"] == cat_name]
             
-            h_c1, h_c2, h_c3, h_c4 = st.columns([3, 1, 2, 1])
+            # ヘッダー
+            h_c1, h_c2, h_c3, h_c4 = st.columns([3.5, 0.8, 1.5, 0.7])
             h_c1.caption("書籍名 / 著者")
             h_c2.caption("詳細")
-            h_c3.caption("あなたの名前")
+            h_c3.caption("名前")
             h_c4.caption("登録")
             st.markdown("---")
 
@@ -69,36 +79,42 @@ with tab_list:
                 author = row.get("著者名", "不明")
                 url = row.get("URL")
                 
-                c1, c2, c3, c4 = st.columns([3, 1, 2, 1])
+                c1, c2, c3, c4 = st.columns([3.5, 0.8, 1.5, 0.7])
+                
                 with c1:
+                    # 書籍名と著者で改行。著者は小さく。
                     st.markdown(f"**{title}** \n<small>{author}</small>", unsafe_allow_html=True)
+                
                 with c2:
                     if pd.notnull(url) and str(url).startswith("http"):
-                        st.link_button("🔗 詳細", str(url))
+                        st.link_button("🔗", str(url), help="書籍詳細を開く")
                     else:
-                        st.write("-")
+                        st.write("")
+                
                 with c3:
-                    name_input = st.text_input("名前", key=f"name_in_{title}", label_visibility="collapsed")
+                    name_input = st.text_input("名前", key=f"ni_{title}", label_visibility="collapsed", placeholder="名前")
+                
                 with c4:
-                    if st.button("選ぶ", key=f"btn_{title}"):
+                    if st.button("選ぶ", key=f"eb_{title}"):
                         if name_input:
                             new_row = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "選出", "書籍タイトル": title, "ユーザー名": name_input, "ポイント": 0}])
                             save_votes(pd.concat([df_votes, new_row], ignore_index=True))
                         else:
-                            st.toast("名前を入力してください！")
+                            st.toast("名前を入力！")
+                
                 st.markdown("<hr>", unsafe_allow_html=True)
 
-# --- 【2】投票・集計画面 ---
+# --- 【2】投票・集計画面（変更なし・安定版） ---
 with tab_vote:
     st.subheader("👤 ユーザー設定")
     my_name = st.text_input("あなたの名前を入力してください", key="my_login_name")
 
     admin_col1, admin_col2 = st.columns(2)
     with admin_col1:
-        if st.button("全得点リセット"):
+        if st.button("全員の得点をリセット"):
             save_votes(df_votes[df_votes["アクション"] == "選出"])
     with admin_col2:
-        if st.button("全データ消去", type="primary"):
+        if st.button("すべてのデータを消去", type="primary"):
             save_votes(pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"]))
 
     st.divider()
@@ -115,7 +131,6 @@ with tab_vote:
     if not my_name:
         st.info("名前を入力すると投票機能が有効になります。")
     else:
-        # 文字列が切れていた部分を修正
         my_v_data = df_votes[(df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票")]
         voted_1_book = my_v_data[my_v_data["ポイント"].astype(float) == 1]["書籍タイトル"].tolist()
         voted_2_book = my_v_data[my_v_data["ポイント"].astype(float) == 2]["書籍タイトル"].tolist()
