@@ -9,15 +9,18 @@ st.set_page_config(page_title="読書会アプリ", layout="wide")
 
 # API・スプレッドシート接続
 try:
-    # 1. Secretsから中身をコピー
-    creds = dict(st.secrets["connections"]["gsheets"])
+    # 1. Secretsから中身を辞書として取得
+    creds_dict = dict(st.secrets["connections"]["gsheets"])
     
-    # 2. 秘密鍵の改行を修正
-    if "private_key" in creds:
-        creds["private_key"] = creds["private_key"].replace("\\n", "\n")
+    # 2. 【重要】spreadsheetのURLは別出しにする必要があるため、辞書から一度取り出す
+    spreadsheet_url = creds_dict.pop("spreadsheet", None)
     
-    # 3. 【重要】Streamlitのtypeと競合しないよう、中身を直接渡す
-    conn = st.connection("gsheets", type=GSheetsConnection, **creds)
+    # 3. 秘密鍵の改行コードを念のため整形（三連クォートなら不要ですが、念のため）
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    
+    # 4. 接続（URLをspreadsheet引数として明示的に渡す）
+    conn = st.connection("gsheets", type=GSheetsConnection, spreadsheet=spreadsheet_url, **creds_dict)
     
     # Gemini設定
     genai.configure(api_key=st.secrets["gemini"]["api_key"])
@@ -28,7 +31,7 @@ except Exception as e:
 
 # --- データ読み込み ---
 def load_data():
-    # 列名の空白によるエラーを防ぐため、読み込み後にstr.strip()を適用
+    # worksheet名はご自身のシート名に合わせてください
     df_books = conn.read(worksheet="booklist", ttl=5)
     df_books.columns = df_books.columns.str.strip()
     
