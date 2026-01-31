@@ -16,7 +16,6 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # API・スプレッドシート接続
-# Service Accountを使う場合、spreadsheet引数は不要になります
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     genai.configure(api_key=st.secrets["gemini"]["api_key"])
@@ -27,7 +26,6 @@ except Exception as e:
 
 # --- データ読み込み ---
 def load_data():
-    # Service Account設定がある場合、worksheet名だけで読み込めます
     df_books = conn.read(worksheet="booklist", ttl=5)
     try:
         df_votes = conn.read(worksheet="votes", ttl=0)
@@ -74,6 +72,8 @@ with tab_list:
                         conn.update(worksheet="votes", data=updated_votes)
                         st.success("保存しました！")
                         st.rerun()
+                    else:
+                        st.warning("名前を入力してください")
 
 # --- 【2】投票画面 ---
 with tab_vote:
@@ -81,6 +81,7 @@ with tab_vote:
     if df_votes.empty or "選出" not in df_votes["アクション"].values:
         st.info("まだ本が選ばれていません。")
     else:
+        # 集計
         summary = df_votes.groupby("書籍タイトル")["ポイント"].sum().reset_index().sort_values("ポイント", ascending=False)
         st.subheader("現在のランキング")
         st.table(summary)
@@ -92,13 +93,4 @@ with tab_vote:
             c1, c2, c3, c4, c5 = st.columns(5)
             
             def add_vote(t, p):
-                v = pd.DataFrame([{"日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "アクション": "投票", "書籍タイトル": t, "ユーザー名": "投票", "ポイント": p}])
-                conn.update(worksheet="votes", data=pd.concat([df_votes, v], ignore_index=True))
-                st.rerun()
-
-            if c1.button("+2", key=f"p2_{title}"): add_vote(title, 2)
-            if c2.button("+1", key=f"p1_{title}"): add_vote(title, 1)
-            if c3.button("-1", key=f"m1_{title}"): add_vote(title, -1)
-            if c4.button("-2", key=f"m2_{title}"): add_vote(title, -2)
-            if c5.button("取消", key=f"del_{title}", type="primary"):
-                conn.update(worksheet="votes
+                v = pd.DataFrame([{"日時": datetime.now().strftime("%Y-%m
