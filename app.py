@@ -7,46 +7,16 @@ import time
 # --- ページ設定 ---
 st.set_page_config(page_title="Book Club", layout="wide")
 
-# CSS: 重なりを解消し、適切な余白を定義
 st.markdown("""
     <style>
-    /* 全体：清潔感のある配色 */
     .main { background-color: #ffffff; }
     .main .block-container { padding-top: 2rem; max-width: 900px; }
-    
-    /* 1行のレイアウト：垂直方向の中央揃えを強化 */
-    [data-testid="column"] { 
-        display: flex; 
-        flex-direction: column; 
-        justify-content: center; 
-        padding: 10px 10px !important; /* 横の余白を確保 */
-    }
-    
-    /* 各行の区切り線と、線から文字を引き離すための上下余白 */
-    .book-row {
-        padding: 15px 0; /* 線とコンテンツの距離をしっかり確保 */
-        border-bottom: 1px solid #ececec;
-        width: 100%;
-        margin-bottom: 5px;
-    }
-    
-    /* テキストのスタイル：行間を少し広げて重なりを防止 */
+    [data-testid="column"] { display: flex; flex-direction: column; justify-content: center; padding: 10px 10px !important; }
+    .book-row { padding: 15px 0; border-bottom: 1px solid #ececec; width: 100%; margin-bottom: 5px; }
     .title-text { font-weight: 600; color: #1a1a1a; margin-bottom: 4px; line-height: 1.5; }
     .author-text { color: #707070; font-size: 0.85rem; line-height: 1.2; }
-    
-    /* ボタン：高さを固定して配置を安定させる */
-    .stButton button {
-        border-radius: 6px;
-        height: 36px !important;
-        border: 1px solid #e0e0e0;
-    }
-    
-    /* 入力欄 */
-    div[data-testid="stTextInput"] input {
-        border-radius: 6px !important;
-        height: 40px !important;
-    }
-
+    .stButton button { border-radius: 6px; height: 36px !important; border: 1px solid #e0e0e0; }
+    div[data-testid="stTextInput"] input { border-radius: 6px !important; height: 40px !important; }
     [data-testid="stSidebar"] { display: none; }
     </style>
     """, unsafe_allow_html=True)
@@ -89,7 +59,7 @@ if not st.session_state.user_name:
     st.stop()
 
 # --- NAVIGATION ---
-st.write("") # スペース確保
+st.write("")
 c_nav1, c_nav2, c_nav3 = st.columns([1, 1, 3])
 with c_nav1:
     if st.button("📖 候補を選ぶ", use_container_width=True, type="primary" if st.session_state.page == "list" else "secondary"):
@@ -117,11 +87,8 @@ if st.session_state.page == "list":
         for cat_name in display_df["カテゴリ"].unique():
             st.markdown(f"<div style='margin: 25px 0 10px 0; color:#333; font-weight:bold;'>📂 {cat_name}</div>", unsafe_allow_html=True)
             cat_books = display_df[display_df["カテゴリ"] == cat_name]
-            
             for _, row in cat_books.iterrows():
                 title, author, url = row.get("書籍名", "無題"), row.get("著者名", "不明"), row.get("URL")
-                
-                # 安定した表示のためのカラム構成
                 c1, c2, c3 = st.columns([4, 0.8, 0.8])
                 with c1:
                     st.markdown(f"<div class='title-text'>{title}</div><div class='author-text'>{author}</div>", unsafe_allow_html=True)
@@ -132,18 +99,40 @@ if st.session_state.page == "list":
                     if st.button("選ぶ", key=f"sel_{title}", use_container_width=True):
                         new_row = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "選出", "書籍タイトル": title, "ユーザー名": st.session_state.user_name, "ポイント": 0}])
                         save_and_refresh(pd.concat([df_votes, new_row], ignore_index=True))
-                
-                # 線の描画と余白の確保
                 st.markdown('<div class="book-row"></div>', unsafe_allow_html=True)
 
 # --- PAGE 2: VOTE & RANKING ---
 else:
     st.subheader("🏆 Ranking")
     if not df_votes.empty:
+        # ポイントを数値化
         df_v = df_votes.copy()
         df_v["ポイント"] = pd.to_numeric(df_v["ポイント"], errors='coerce').fillna(0)
-        summary = df_v.groupby("書籍タイトル")["ポイント"].sum().reset_index().sort_values("ポイント", ascending=False)
-        st.dataframe(summary, hide_index=True, use_container_width=True)
+        
+        # 投票データのみ抽出
+        vote_data = df_v[df_v["アクション"] == "投票"]
+        
+        # 書籍ごとの合計点と内訳を作成
+        summary_list = []
+        # 全ての選出された書籍をベースにする
+        all_nominated = df_v[df_v["アクション"] == "選出"]["書籍タイトル"].unique()
+        
+        for title in all_nominated:
+            # その本への投票を抽出
+            b_votes = vote_data[vote_data["書籍タイトル"] == title]
+            total_p = b_votes["ポイント"].sum()
+            
+            # 内訳文字列を作成 例: "山田(2), 田中(1)"
+            details = ", ".join([f"{r['ユーザー名']}({int(r['ポイント'])})" for _, r in b_votes.iterrows()])
+            
+            summary_list.append({
+                "書籍タイトル": title,
+                "合計点": total_p,
+                "投票者内訳": details if details else "-"
+            })
+            
+        summary_df = pd.DataFrame(summary_list).sort_values("合計点", ascending=False)
+        st.dataframe(summary_df, hide_index=True, use_container_width=True)
     
     st.divider()
     
@@ -157,12 +146,12 @@ else:
         save_and_refresh(df_votes[~((df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票"))])
 
     st.write("")
-    nominated = df_votes[df_votes["アクション"] == "選出"]
+    nominated_rows = df_votes[df_votes["アクション"] == "選出"]
     
-    if nominated.empty:
+    if nominated_rows.empty:
         st.info("候補がまだ選ばれていません。")
     else:
-        for _, n_row in nominated.iterrows():
+        for _, n_row in nominated_rows.iterrows():
             b_title = n_row["書籍タイトル"]
             this_p = voted_titles.get(b_title, 0)
             
@@ -181,7 +170,6 @@ else:
                 if st.button(f"+2", key=f"v2_{b_title}", type="primary" if this_p==2 else "secondary", disabled=d2, use_container_width=True):
                     new_v = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "投票", "書籍タイトル": b_title, "ユーザー名": my_name, "ポイント": 2}])
                     save_and_refresh(pd.concat([df_votes, new_v], ignore_index=True))
-            
             st.markdown('<div class="book-row"></div>', unsafe_allow_html=True)
 
     with st.expander("Admin Settings"):
