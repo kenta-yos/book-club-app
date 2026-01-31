@@ -1,152 +1,143 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import google.generativeai as genai
 import pandas as pd
 from datetime import datetime
 
 # --- 初期設定 ---
-st.set_page_config(page_title="読書会選書アプリ", layout="wide")
-st.title("📚 読書会 選書＆投票アプリ")
+st.set_page_config(page_title="読書会アプリ", layout="wide")
 
-# シークレットから情報を取得
+# カスタムCSSでメニューを使いやすく
+st.markdown("""
+    <style>
+    .stButton button { width: 100%; border-radius: 5px; }
+    .book-card { border: 1px solid #ddd; padding: 15px; border-radius: 10px; margin-bottom: 10px; }
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
+
+# データの保持（投票データをセッション間で維持）
+if "local_votes" not in st.session_state:
+    st.session_state.local_votes = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
+
+# シークレット取得
 try:
-    SPREADSHEET_URL = st.secrets["gsheets"]["public_url"]
+    SHEET_ID = "1SnZqt_VqsmHJAePrdUdrtmXnfzaGj4VBlYDZ1F3T8yc"
     GEMINI_API_KEY = st.secrets["gemini"]["api_key"]
-except KeyError:
-    st.error("Secretsの設定が見つかりません。")
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel('gemini-1.5-flash')
+except:
+    st.error("設定エラー: Secretsを確認してください")
     st.stop()
 
-# Geminiの設定
-genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+# --- データ読み込み関数 ---
+@st.cache_data(ttl=60) # 1分間キャッシュして高速化
+def load_book_list():
+    url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=booklist"
+    df = pd.read_csv(url, header=0)
+    df.columns = df.columns.str.strip()
+    return df
 
-# Google Sheetsへの接続
-conn = st.connection("gsheets", type=GSheetsConnection)
+df_books = load_book_list()
 
-# --- データ読み込み ---
-def load_data():
-    # スプレッドシートのIDを抽出して、CSV形式で直接読み込む（最もエラーが少ない方法）
-    sheet_id = "1SnZqt_VqsmHJAePrdUdrtmXnfzaGj4VBlYDZ1F3T8yc"
-    
-    # booklistシートの読み込み
-    url_books = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=booklist"
-    df_books = pd.read_csv(url_books)
-    
-    # votesシートの読み込み
-    try:
-        url_votes = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=votes"
-        df_votes = pd.read_csv(url_votes)
-    except Exception:
-        df_votes = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
-        
-    return df_books, df_votes
+# --- 上部ナビゲーション（タブ形式で固定） ---
+# スマホでも押しやすいよう、サイドバーではなくメイン画面上部に配置
+tab_list, tab_vote = st.tabs(["📖 Bookリスト", "🗳️ 投票・集計"])
 
-df_books, df_votes = load_data()
-
-# セッション状態（一時保存用）の初期化
-if "local_votes" not in st.session_state:
-    st.session_state.local_votes = df_votes
-
-# --- サイドバーナビゲーション ---
-menu = st.sidebar.radio("メニュー", ["Bookリスト", "投票画面"])
-
-# --- AIチャット機能 (サイドバー) ---
-st.sidebar.markdown("---")
-st.sidebar.subheader("🤖 AI選書コンシェルジュ")
-user_input = st.sidebar.text_input("どんな本が読みたい？", placeholder="例：社会学で読みやすい本は？")
-
-if user_input:
-    # 読み込んだリストに基づいて回答
-    book_context = df_books[['書籍名', '著者名', 'カテゴリ']].to_string()
-    prompt = f"以下のリスト内の本のみを使って、ユーザーの要望に答えてください。\n\n【リスト】\n{book_context}\n\n【要望】\n{user_input}"
-    with st.sidebar.status("AIが考えています..."):
+# --- AIチャット（サイドバーに配置） ---
+with st.sidebar:
+    st.subheader("🤖 AIコンシェルジュ")
+    user_input = st.text_input("どんな本を探してる？", placeholder="例：泣ける本を教えて")
+    if user_input:
+        context = df_books[['書籍名', '著者名', 'カテゴリ']].to_string()
+        prompt = f"リスト内の本だけで回答して下さい。回答は短く簡潔に。\n\n【リスト】\n{context}\n\n【要望】\n{user_input}"
         response = model.generate_content(prompt)
-    st.sidebar.info(response.text)
+        st.info(response.text)
 
-# --- メインコンテンツ ---
-
-if menu == "Bookリスト":
-    st.header("📖 書籍一覧")
+# --- 【1】Bookリスト画面 ---
+with tab_list:
+    st.header("読みたい本を選ぼう")
     
-    # カテゴリで絞り込み
-    if "カテゴリ" in df_books.columns:
-        categories = ["すべて"] + list(df_books["カテゴリ"].unique())
-        selected_cat = st.selectbox("カテゴリで絞り込み", categories)
-        display_df = df_books if selected_cat == "すべて" else df_books[df_books["カテゴリ"] == selected_cat]
-    else:
-        display_df = df_books
+    # カテゴリ絞り込み
+    all_cats = ["すべて"] + list(df_books["カテゴリ"].unique())
+    selected_cat = st.selectbox("カテゴリ表示切替", all_cats)
+    
+    display_df = df_books if selected_cat == "すべて" else df_books[df_books["カテゴリ"] == selected_cat]
 
-    # カテゴリごとに表示
-    for cat in display_df["カテゴリ"].unique():
-        with st.expander(f"📂 {cat}", expanded=True):
-            cat_books = display_df[display_df["カテゴリ"] == cat]
-            for _, row in cat_books.iterrows():
-                col1, col2 = st.columns([3, 1])
-                col1.markdown(f"**{row['書籍名']}** ({row['著者名']})")
-                if col2.button("詳細・選ぶ", key=f"sel_{row['書籍名']}"):
-                    st.session_state.temp_book = row
+    for _, row in display_df.iterrows():
+        title = row.get("書籍名", "無題")
+        author = row.get("著者名", "不明")
+        cat = row.get("カテゴリ", "-")
+        url = row.get("URL", "#")
 
-    # 詳細表示
-    if "temp_book" in st.session_state:
-        book = st.session_state.temp_book
-        st.markdown("---")
-        st.subheader(f"📌 {book['書籍名']}")
-        st.write(f"著者: {book['著者名']}")
-        if "URL" in book and pd.notnull(book['URL']):
-            st.link_button("詳細サイト（外部URL）へ", book['URL'])
-        
-        u_name = st.text_input("あなたの名前を入力してください")
-        if st.button("この本を候補に選ぶ"):
-            if u_name:
-                new_data = {"日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "アクション": "選出", "書籍タイトル": book['書籍名'], "ユーザー名": u_name, "ポイント": 0}
-                st.session_state.local_votes = pd.concat([st.session_state.local_votes, pd.DataFrame([new_data])], ignore_index=True)
-                st.success(f"{u_name}さんが「{book['書籍名']}」を候補に入れました！")
-                del st.session_state.temp_book
-                st.rerun()
-            else:
-                st.error("名前を入力してください")
+        # 各書籍を「開閉式（expander）」にして詳細を閉じ込める
+        with st.expander(f"📔 {title} / {author}"):
+            st.write(f"**カテゴリ:** {cat}")
+            if pd.notnull(url) and str(url).startswith("http"):
+                st.link_button("🔗 書籍詳細サイトを表示", str(url))
+            
+            # 選出フォーム
+            with st.form(key=f"form_{title}"):
+                u_name = st.text_input("あなたの名前", key=f"name_{title}")
+                submit = st.form_submit_button("この本を読書会候補に選ぶ")
+                if submit:
+                    if u_name:
+                        new_row = pd.DataFrame([{
+                            "日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "アクション": "選出",
+                            "書籍タイトル": title,
+                            "ユーザー名": u_name,
+                            "ポイント": 0
+                        }])
+                        st.session_state.local_votes = pd.concat([st.session_state.local_votes, new_row], ignore_index=True)
+                        st.success(f"{title} を候補に追加しました！「投票」タブを見てね。")
+                    else:
+                        st.warning("名前を入力してください")
 
-else: # 投票画面
-    st.header("🗳️ 投票・集計")
+# --- 【2】投票画面 ---
+with tab_vote:
+    st.header("みんなで投票")
     v_df = st.session_state.local_votes
     
-    # 「選出」された本を特定
-    nominated = v_df[v_df["アクション"] == "選出"]["書籍タイトル"].unique()
+    # 選出された本の一覧を取得
+    nominated = v_df[v_df["アクション"] == "選出"]
     
-    if len(nominated) == 0:
-        st.info("まだ候補の本が選ばれていません。Bookリストから「この本を選出する」を押してください。")
+    if nominated.empty:
+        st.info("まだ本が選ばれていません。Bookリストから選んでください。")
     else:
-        # スコア計算
-        scores = v_df.groupby("書籍タイトル")["ポイント"].sum().reset_index()
-        st.subheader("現在のランキング")
-        st.table(scores.sort_values("ポイント", ascending=False))
+        # スコア集計
+        score_summary = v_df.groupby("書籍タイトル")["ポイント"].sum().reset_index()
+        score_summary = score_summary.sort_values("ポイント", ascending=False)
         
-        st.markdown("---")
-        for title in nominated:
-            # その本を最初に選んだ人を取得
-            n_rows = v_df[(v_df["書籍タイトル"] == title) & (v_df["アクション"] == "選出")]
-            n_name = n_rows.iloc[0]['ユーザー名'] if not n_rows.empty else "不明"
+        st.subheader("現在の集計結果")
+        st.dataframe(score_summary, hide_index=True, use_container_width=True)
+        
+        st.divider()
+        
+        # 候補ごとの投票ボタン
+        for _, n_row in nominated.iterrows():
+            b_title = n_row["書籍タイトル"]
+            n_user = n_row["ユーザー名"]
             
-            st.write(f"### {title}")
-            st.caption(f"候補に追加した人: {n_name} さん")
+            # 各候補をカード風に表示
+            st.markdown(f"### {b_title}")
+            st.caption(f"選んだ人: {n_user}さん")
             
-            c1, c2, c3, c4, c5 = st.columns(5)
-            if c1.button("+2", key=f"p2_{title}"):
-                new_v = {"日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "アクション": "投票", "書籍タイトル": title, "ユーザー名": "", "ポイント": 2}
-                st.session_state.local_votes = pd.concat([st.session_state.local_votes, pd.DataFrame([new_v])], ignore_index=True)
+            col1, col2, col3, col4, col5 = st.columns(5)
+            
+            if col1.button("＋2", key=f"p2_{b_title}"):
+                st.session_state.local_votes = pd.concat([st.session_state.local_votes, pd.DataFrame([{"書籍タイトル": b_title, "ポイント": 2, "アクション": "投票"}])], ignore_index=True)
                 st.rerun()
-            if c2.button("+1", key=f"p1_{title}"):
-                new_v = {"日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "アクション": "投票", "書籍タイトル": title, "ユーザー名": "", "ポイント": 1}
-                st.session_state.local_votes = pd.concat([st.session_state.local_votes, pd.DataFrame([new_v])], ignore_index=True)
+            if col2.button("＋1", key=f"p1_{b_title}"):
+                st.session_state.local_votes = pd.concat([st.session_state.local_votes, pd.DataFrame([{"書籍タイトル": b_title, "ポイント": 1, "アクション": "投票"}])], ignore_index=True)
                 st.rerun()
-            if c3.button("-1", key=f"m1_{title}"):
-                new_v = {"日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "アクション": "投票", "書籍タイトル": title, "ユーザー名": "", "ポイント": -1}
-                st.session_state.local_votes = pd.concat([st.session_state.local_votes, pd.DataFrame([new_v])], ignore_index=True)
+            if col3.button("ー1", key=f"m1_{b_title}"):
+                st.session_state.local_votes = pd.concat([st.session_state.local_votes, pd.DataFrame([{"書籍タイトル": b_title, "ポイント": -1, "アクション": "投票"}])], ignore_index=True)
                 st.rerun()
-            if c4.button("-2", key=f"m2_{title}"):
-                new_v = {"日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "アクション": "投票", "書籍タイトル": title, "ユーザー名": "", "ポイント": -2}
-                st.session_state.local_votes = pd.concat([st.session_state.local_votes, pd.DataFrame([new_v])], ignore_index=True)
+            if col4.button("ー2", key=f"m2_{b_title}"):
+                st.session_state.local_votes = pd.concat([st.session_state.local_votes, pd.DataFrame([{"書籍タイトル": b_title, "ポイント": -2, "アクション": "投票"}])], ignore_index=True)
                 st.rerun()
-            if c5.button("選出取消", key=f"del_{title}", type="primary"):
-                st.session_state.local_votes = v_df[v_df["書籍タイトル"] != title]
+            if col5.button("取消", key=f"del_{b_title}", type="primary"):
+                st.session_state.local_votes = st.session_state.local_votes[st.session_state.local_votes["書籍タイトル"] != b_title]
                 st.rerun()
+            st.divider()
