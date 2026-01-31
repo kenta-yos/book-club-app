@@ -12,21 +12,13 @@ try:
     # 1. Secretsから中身をコピー
     creds_dict = dict(st.secrets["connections"]["gsheets"])
     
-    # 2. 【最重要】URLを辞書から取り出して変数に格納（辞書からは消す）
-    # これにより、後続の **creds_dict で URL が重複して渡されるのを防ぎます
-    spreadsheet_url = creds_dict.pop("spreadsheet", None)
-    
-    # 3. 秘密鍵の改行を整形
+    # 2. 秘密鍵の改行を整形（これが無いとGoogleが鍵を拒否します）
     if "private_key" in creds_dict:
         creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
     
-    # 4. 接続: spreadsheet URL は明示的に渡し、それ以外を ** で展開
-    conn = st.connection(
-        "gsheets", 
-        type=GSheetsConnection, 
-        spreadsheet=spreadsheet_url, 
-        **creds_dict
-    )
+    # 3. 【解決策】spreadsheet=spreadsheet_url を消し、
+    # 全てを **creds_dict (中身にspreadsheetが含まれている) に任せる
+    conn = st.connection("gsheets", type=GSheetsConnection, **creds_dict)
     
     # Gemini設定
     genai.configure(api_key=st.secrets["gemini"]["api_key"])
@@ -37,7 +29,7 @@ except Exception as e:
 
 # --- データ読み込み ---
 def load_data():
-    # worksheet名は実際のシート名（booklist / votes）に合わせてください
+    # スプレッドシートの「ワークシート名」が正しいか確認してください
     df_books = conn.read(worksheet="booklist", ttl=5)
     df_books.columns = df_books.columns.str.strip()
     
