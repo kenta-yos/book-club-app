@@ -19,14 +19,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# タブの状態を保持するセッション
+if "active_tab" not in st.session_state:
+    st.session_state.active_tab = 0
+
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data():
     try:
-        # ttlを短く設定して最新を保ちつつAPIエラーを防ぐ
         df_books = conn.read(worksheet="booklist", ttl=120)
         df_books.columns = df_books.columns.str.strip()
-        df_votes = conn.read(worksheet="votes", ttl=0) # 投票は常に最新を取得
+        df_votes = conn.read(worksheet="votes", ttl=0)
         if df_votes.empty:
             df_votes = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
         df_votes.columns = df_votes.columns.str.strip()
@@ -39,18 +42,25 @@ def save_votes(df):
         with st.spinner("スプレッドシートを更新中..."):
             conn.update(worksheet="votes", data=df)
             st.cache_data.clear()
-            time.sleep(1.5) # 反映待ち
+            time.sleep(1.5)
             st.rerun()
-    except Exception as e:
-        # 通信エラーが出ても、実際には保存されているケースが多いためリロードを試みる
+    except:
         st.cache_data.clear()
         st.rerun()
 
 df_books, df_votes = load_data()
-tab_list, tab_vote = st.tabs(["📖 Bookリスト", "🗳️ 投票・集計"])
+
+# タブの作成（セッションから初期値を取得）
+# ユーザーがタブを切り替えたら session_state を更新する仕組み
+tabs = ["📖 Bookリスト", "🗳️ 投票・集計"]
+# URLパラメータやsession_stateを使ってタブを固定
+selected_tab = st.radio("ナビゲーション", tabs, index=st.session_state.active_tab, horizontal=True, label_visibility="collapsed")
+
+# 選択されたタブをセッションに保存（リロード対策）
+st.session_state.active_tab = tabs.index(selected_tab)
 
 # --- 【1】Bookリスト画面 ---
-with tab_list:
+if selected_tab == "📖 Bookリスト":
     st.header("候補に登録")
     if not df_books.empty:
         all_cats = ["すべて"] + list(df_books["カテゴリ"].unique())
@@ -91,7 +101,7 @@ with tab_list:
                 st.markdown("<hr>", unsafe_allow_html=True)
 
 # --- 【2】投票・集計画面 ---
-with tab_vote:
+if selected_tab == "🗳️ 投票・集計":
     st.subheader("👤 ユーザー設定")
     my_name = st.text_input("あなたの名前を入力してください", key="my_login_name")
 
