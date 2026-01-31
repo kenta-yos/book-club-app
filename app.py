@@ -19,30 +19,36 @@ st.markdown("""
 # 1. スプレッドシート接続
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# 2. データ読み込み関数
+# 2. データ読み込み関数（ttl=0で常に最新を取りに行く設定に変更）
 def load_data():
+    # ttl=0 にすることで、Streamlitの内部キャッシュを無視して毎回スプレッドシートを見に行きます
+    df_books = conn.read(worksheet="booklist", ttl=0)
+    df_books.columns = df_books.columns.str.strip()
+    
     try:
-        df_books = conn.read(worksheet="booklist", ttl=1)
-        df_books.columns = df_books.columns.str.strip()
-        df_votes = conn.read(worksheet="votes", ttl=1)
+        df_votes = conn.read(worksheet="votes", ttl=0)
         if df_votes.empty:
             df_votes = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
         df_votes.columns = df_votes.columns.str.strip()
-        return df_books, df_votes
     except:
-        return pd.DataFrame(), pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
+        df_votes = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
+        
+    return df_books, df_votes
 
-df_books, df_votes = load_data()
-
-# 3. 書き込み用関数
+# 3. 書き込み用関数（確実にリロードさせる）
 def save_votes(df):
-    try:
+    with st.spinner("反映中..."):
+        # 書き込み実行
         conn.update(worksheet="votes", data=df)
+        # 接続のキャッシュを完全にクリア
         st.cache_data.clear()
-        time.sleep(1) 
+        # Google側の反映ラグを考慮して少しだけ待機
+        time.sleep(1)
+        # 強制的に最初から実行し直す
         st.rerun()
-    except:
-        st.error("保存に失敗しました。時間をおいて再送してください。")
+
+# データのロード
+df_books, df_votes = load_data()
 
 # --- メイン画面 ---
 tab_list, tab_vote = st.tabs(["📖 Bookリスト", "🗳️ 投票・集計"])
@@ -72,11 +78,10 @@ with tab_list:
 
 # --- 【2】投票・集計画面 ---
 with tab_vote:
-    # ユーザー認証（名前で判定）
     st.subheader("👤 投票者ログイン")
-    my_name = st.text_input("あなたの名前を入力してください（投票やクリアに使用）", key="my_login_name")
+    # 入力した瞬間に反映させるために on_change は使わず、セッションで管理
+    my_name = st.text_input("あなたの名前を入力してください", key="my_login_name")
 
-    # 管理用ボタン（名前不要）
     admin_col1, admin_col2 = st.columns(2)
     with admin_col1:
         if st.button("全得点リセット"):
@@ -97,7 +102,6 @@ with tab_vote:
 
     st.divider()
 
-    # 投票処理
     if not my_name:
         st.info("名前を入力すると投票・クリアができるようになります。")
     else:
@@ -109,9 +113,7 @@ with tab_vote:
         has_voted_1 = len(voted_1_book) > 0
         has_voted_2 = len(voted_2_book) > 0
 
-        # クリアボタン
-        if st.button(f"{my_name}さんの投票をすべて取り消す"):
-            # 自分かつ「投票」アクションの行を完全に削除
+        if st.button(f"🚩 {my_name}さんの投票をすべて取り消す"):
             filtered_df = df_votes[~((df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票"))]
             save_votes(filtered_df)
 
@@ -120,8 +122,6 @@ with tab_vote:
         
         for _, n_row in nominated.iterrows():
             b_title = n_row["書籍タイトル"]
-            
-            # この本に自分が何点入れているか
             this_p = 0
             if b_title in voted_1_book: this_p = 1
             if b_title in voted_2_book: this_p = 2
@@ -129,13 +129,11 @@ with tab_vote:
             c1, c2, c3 = st.columns([3, 0.6, 0.6])
             c1.markdown(f"**{b_title}** <small>({n_row['ユーザー名']}さん選出)</small>", unsafe_allow_html=True)
             
-            # +1ボタンの制御: すでにどこかで+1を使っている OR この本で+2を使っているなら無効
             d1 = has_voted_1 or (this_p == 2)
             if c2.button(f"+1", key=f"p1_{b_title}", type="primary" if this_p==1 else "secondary", disabled=d1):
                 new_v = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "投票", "書籍タイトル": b_title, "ユーザー名": my_name, "ポイント": 1}])
                 save_votes(pd.concat([df_votes, new_v], ignore_index=True))
 
-            # +2ボタンの制御: すでにどこかで+2を使っている OR この本で+1を使っているなら無効
             d2 = has_voted_2 or (this_p == 1)
             if c3.button(f"+2", key=f"p2_{b_title}", type="primary" if this_p==2 else "secondary", disabled=d2):
                 new_v = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "投票", "書籍タイトル": b_title, "ユーザー名": my_name, "ポイント": 2}])
