@@ -79,11 +79,11 @@ if not st.session_state.user_name:
 st.write("")
 c_nav1, c_nav2, c_nav3 = st.columns([1, 1, 3])
 with c_nav1:
-    if st.button("📖 候補を選ぶ", use_container_width=True, type="primary" if st.session_state.page == "list" else "secondary"):
+    if st.button("📖 本を選ぶ", use_container_width=True, type="primary" if st.session_state.page == "list" else "secondary"):
         st.session_state.page = "list"
         st.rerun()
 with c_nav2:
-    if st.button("🗳️ 投票・集計", use_container_width=True, type="primary" if st.session_state.page == "vote" else "secondary"):
+    if st.button("🗳️ 投票する", use_container_width=True, type="primary" if st.session_state.page == "vote" else "secondary"):
         st.session_state.page = "vote"
         st.rerun()
 with c_nav3:
@@ -98,7 +98,7 @@ if st.session_state.page == "list":
     st.header("Book List")
     
     if df_books.empty:
-        st.warning("Bookリストが読み込めませんでした。スプレッドシートの'booklist'シートを確認するか、更新ボタンを押してください。")
+        st.warning("Bookリストが読み込めませんでした。更新ボタンを押してください。")
     else:
         # カテゴリの取得（欠損値を除去）
         all_categories = df_books["カテゴリ"].dropna().unique().tolist()
@@ -165,7 +165,7 @@ else:
     my_v_data = df_votes[(df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票")]
     voted_titles = {row["書籍タイトル"]: row["ポイント"] for _, row in my_v_data.iterrows()}
 
-    if st.button("自分の投票をすべて取消", key="revoke"):
+    if st.button("自分の投票をすべてリセット", key="revoke"):
         save_and_refresh(df_votes[~((df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票"))])
 
     st.write("")
@@ -197,7 +197,7 @@ else:
                     save_and_refresh(pd.concat([df_votes, new_v], ignore_index=True))
             st.markdown('<div class="book-row"></div>', unsafe_allow_html=True)
 
-    with st.expander("Admin Settings"):
+    with st.expander("データリセット"):
         if st.button("全得点リセット"):
             save_and_refresh(df_votes[df_votes["アクション"] == "選出"])
         if st.button("全データ完全消去", type="primary"):
