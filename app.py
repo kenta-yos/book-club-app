@@ -15,6 +15,9 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# URLをSecretsから取得
+SPREADSHEET_URL = st.secrets["gsheets"]["public_url"]
+
 # API・スプレッドシート接続
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
@@ -24,13 +27,20 @@ except:
     st.error("接続設定にエラーがあります。Secretsを確認してください。")
     st.stop()
 
-# --- データ読み込み（キャッシュを短くしてリアルタイム性を確保） ---
+# --- データ読み込み ---
 def load_data():
-    df_books = conn.read(worksheet="booklist", ttl=5)
+    # spreadsheet引数にURLを渡すように修正
+    df_books = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="booklist", ttl=5)
     try:
-        df_votes = conn.read(worksheet="votes", ttl=0) # 投票結果は常に最新を
+        df_votes = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="votes", ttl=0)
     except:
         df_votes = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
+    
+    # 列名の空白削除
+    df_books.columns = df_books.columns.str.strip()
+    if not df_votes.empty:
+        df_votes.columns = df_votes.columns.str.strip()
+        
     return df_books, df_votes
 
 df_books, df_votes = load_data()
@@ -67,9 +77,11 @@ with tab_list:
                     if u_name:
                         new_row = pd.DataFrame([{"日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "アクション": "選出", "書籍タイトル": title, "ユーザー名": u_name, "ポイント": 0}])
                         updated_votes = pd.concat([df_votes, new_row], ignore_index=True)
-                        conn.update(worksheet="votes", data=updated_votes)
-                        st.success("スプレッドシートに保存しました！「投票」タブを確認してください。")
+                        conn.update(spreadsheet=SPREADSHEET_URL, worksheet="votes", data=updated_votes)
+                        st.success("保存しました！「投票」タブを確認してください。")
                         st.rerun()
+                    else:
+                        st.warning("名前を入力してください")
 
 # --- 【2】投票画面 ---
 with tab_vote:
@@ -81,23 +93,3 @@ with tab_vote:
         summary = df_votes.groupby("書籍タイトル")["ポイント"].sum().reset_index().sort_values("ポイント", ascending=False)
         st.subheader("現在のランキング")
         st.table(summary)
-        
-        st.divider()
-        # 選出された本ごとに投票ボタンを表示
-        nominated_titles = df_votes[df_votes["アクション"] == "選出"]["書籍タイトル"].unique()
-        for title in nominated_titles:
-            st.write(f"### {title}")
-            c1, c2, c3, c4, c5 = st.columns(5)
-            
-            def add_vote(t, p):
-                v = pd.DataFrame([{"日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "アクション": "投票", "書籍タイトル": t, "ユーザー名": "投票", "ポイント": p}])
-                conn.update(worksheet="votes", data=pd.concat([df_votes, v], ignore_index=True))
-                st.rerun()
-
-            if c1.button("+2", key=f"p2_{title}"): add_vote(title, 2)
-            if c2.button("+1", key=f"p1_{title}"): add_vote(title, 1)
-            if c3.button("-1", key=f"m1_{title}"): add_vote(title, -1)
-            if c4.button("-2", key=f"m2_{title}"): add_vote(title, -2)
-            if c5.button("取消", key=f"del_{title}", type="primary"):
-                conn.update(worksheet="votes", data=df_votes[df_votes["書籍タイトル"] != title])
-                st.rerun()
