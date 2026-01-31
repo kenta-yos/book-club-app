@@ -9,15 +9,18 @@ st.set_page_config(page_title="読書会アプリ", layout="wide")
 
 # API・スプレッドシート接続
 try:
-    # 接続設定をSecretsから直接読み込む形に強化
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    # --- 修正ポイント：Secretsの辞書を取得し、private_key内の文字を整形 ---
+    creds_dict = dict(st.secrets["connections"]["gsheets"])
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    
+    # 修正した辞書を使って接続
+    conn = st.connection("gsheets", type=GSheetsConnection, **creds_dict)
     
     # Gemini設定
     genai.configure(api_key=st.secrets["gemini"]["api_key"])
     model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
     st.error(f"接続設定エラー: {e}")
-    st.info("Secretsの形式、またはAPIキーを確認してください。")
     st.stop()
 
 # --- データ読み込み ---
