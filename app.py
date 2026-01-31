@@ -9,6 +9,9 @@ st.set_page_config(page_title="読書会", layout="wide")
 # スタイル設定
 st.markdown("<style>.stButton button {width:100%;}</style>", unsafe_allow_html=True)
 
+# URLをSecretsから取得
+URL = st.secrets["gsheets"]["public_url"]
+
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     genai.configure(api_key=st.secrets["gemini"]["api_key"])
@@ -18,9 +21,10 @@ except Exception as e:
     st.stop()
 
 def load_data():
-    df_b = conn.read(worksheet="booklist", ttl=5)
+    # 修正ポイント：spreadsheet=URL を追加
+    df_b = conn.read(spreadsheet=URL, worksheet="booklist", ttl=5)
     try:
-        df_v = conn.read(worksheet="votes", ttl=0)
+        df_v = conn.read(spreadsheet=URL, worksheet="votes", ttl=0)
     except:
         df_v = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
     df_b.columns = df_b.columns.str.strip()
@@ -46,14 +50,14 @@ with t1:
     for _, r in disp.iterrows():
         title = r['書籍名']
         with st.expander(f"📔 {title} / {r['著者名']}"):
-            if pd.notnull(r['URL']): st.link_button("詳細", str(r['URL']))
+            if pd.notnull(r.get('URL')): st.link_button("詳細", str(r['URL']))
             with st.form(f"f_{title}"):
                 name = st.text_input("名前", key=f"n_{title}")
                 if st.form_submit_button("候補に入れる"):
                     if name:
                         row = {"日時": datetime.now().strftime("%Y-%m-%d"), "アクション": "選出", "書籍タイトル": title, "ユーザー名": name, "ポイント": 0}
                         new_v = pd.concat([df_votes, pd.DataFrame([row])], ignore_index=True)
-                        conn.update(worksheet="votes", data=new_v)
+                        conn.update(spreadsheet=URL, worksheet="votes", data=new_v)
                         st.rerun()
 
 with t2:
@@ -72,12 +76,12 @@ with t2:
             
             def vote(p):
                 v = {"日時": datetime.now().strftime("%Y-%m-%d"), "アクション": "投票", "書籍タイトル": t, "ユーザー名": "匿名", "ポイント": p}
-                conn.update(worksheet="votes", data=pd.concat([df_votes, pd.DataFrame([v])], ignore_index=True))
+                conn.update(spreadsheet=URL, worksheet="votes", data=pd.concat([df_votes, pd.DataFrame([v])], ignore_index=True))
                 st.rerun()
 
             if c1.button("+2", key=f"p2_{t}"): vote(2)
             if c2.button("+1", key=f"p1_{t}"): vote(1)
             if c3.button("-1", key=f"m1_{t}"): vote(-1)
             if c4.button("取消", key=f"dl_{t}", type="primary"):
-                conn.update(worksheet="votes", data=df_votes[df_votes["書籍タイトル"] != t])
+                conn.update(spreadsheet=URL, worksheet="votes", data=df_votes[df_votes["書籍タイトル"] != t])
                 st.rerun()
