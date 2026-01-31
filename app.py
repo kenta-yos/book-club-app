@@ -25,13 +25,20 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- データ読み込み ---
 def load_data():
-    # 本のリストを読み込み (シート名を booklist に変更)
-    df_books = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="booklist")
-    # 投票結果を読み込み (シート名を votes に変更)
+    # スプレッドシートのIDを抽出して、CSV形式で直接読み込む（最もエラーが少ない方法）
+    sheet_id = "1SnZqt_VqsmHJAePrdUdrtmXnfzaGj4VBlYDZ1F3T8yc"
+    
+    # booklistシートの読み込み
+    url_books = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=booklist"
+    df_books = pd.read_csv(url_books)
+    
+    # votesシートの読み込み
     try:
-        df_votes = conn.read(spreadsheet=SPREADSHEET_URL, worksheet="votes")
+        url_votes = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=votes"
+        df_votes = pd.read_csv(url_votes)
     except Exception:
         df_votes = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
+        
     return df_books, df_votes
 
 df_books, df_votes = load_data()
