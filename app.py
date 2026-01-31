@@ -7,15 +7,15 @@ from datetime import datetime
 # --- 初期設定 ---
 st.set_page_config(page_title="読書会アプリ", layout="wide")
 
-# UIの改善
+# UIの改善（CSS）
 st.markdown("""
     <style>
-    .stButton button { width: 100%; }
+    .stButton button { width: 100%; border-radius: 5px; }
     .stTabs [data-baseweb="tab-list"] { position: sticky; top: 0; z-index: 999; background: white; }
     </style>
     """, unsafe_allow_html=True)
 
-# API・スプレッドシート接続
+# API・接続設定
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     genai.configure(api_key=st.secrets["gemini"]["api_key"])
@@ -31,7 +31,6 @@ def load_data():
         df_votes = conn.read(worksheet="votes", ttl=0)
     except:
         df_votes = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
-    
     df_books.columns = df_books.columns.str.strip()
     return df_books, df_votes
 
@@ -54,7 +53,6 @@ with tab_list:
     st.header("候補を選んでください")
     all_cats = ["すべて"] + list(df_books["カテゴリ"].unique())
     selected_cat = st.selectbox("カテゴリ絞り込み", all_cats)
-    
     display_df = df_books if selected_cat == "すべて" else df_books[df_books["カテゴリ"] == selected_cat]
 
     for _, row in display_df.iterrows():
@@ -67,30 +65,7 @@ with tab_list:
                 u_name = st.text_input("あなたの名前", key=f"n_{title}")
                 if st.form_submit_button("この本を選出候補に入れる"):
                     if u_name:
-                        new_row = pd.DataFrame([{"日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "アクション": "選出", "書籍タイトル": title, "ユーザー名": u_name, "ポイント": 0}])
-                        updated_votes = pd.concat([df_votes, new_row], ignore_index=True)
-                        conn.update(worksheet="votes", data=updated_votes)
-                        st.success("保存しました！")
-                        st.rerun()
-                    else:
-                        st.warning("名前を入力してください")
-
-# --- 【2】投票画面 ---
-with tab_vote:
-    st.header("みんなの投票結果")
-    if df_votes.empty or "選出" not in df_votes["アクション"].values:
-        st.info("まだ本が選ばれていません。")
-    else:
-        # 集計
-        summary = df_votes.groupby("書籍タイトル")["ポイント"].sum().reset_index().sort_values("ポイント", ascending=False)
-        st.subheader("現在のランキング")
-        st.table(summary)
-        
-        st.divider()
-        nominated_titles = df_votes[df_votes["アクション"] == "選出"]["書籍タイトル"].unique()
-        for title in nominated_titles:
-            st.write(f"### {title}")
-            c1, c2, c3, c4, c5 = st.columns(5)
-            
-            def add_vote(t, p):
-                v = pd.DataFrame([{"日時": datetime.now().strftime("%Y-%m
+                        new_data = {
+                            "日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "アクション": "選出",
+                            "書籍
