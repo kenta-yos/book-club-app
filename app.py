@@ -7,44 +7,51 @@ import time
 # --- ページ設定 ---
 st.set_page_config(page_title="Book Club", layout="wide")
 
-# CSS: 要素の重なりを解消し、適切な余白を定義
+# CSS: コンテンツと線の「衝突」を防ぐための高度な余白設定
 st.markdown("""
     <style>
-    /* 全体：清潔感のある配色 */
     .main { background-color: #ffffff; }
     .main .block-container { padding-top: 2rem; max-width: 900px; }
     
-    /* 1行のレイアウト：文字とボタンを中央揃えにし、線との距離を保つ */
+    /* 1つの行（Row）全体の定義 */
+    .book-row-container {
+        padding: 22px 0; /* 上下の余白を大幅に確保 */
+        border-bottom: 1px solid #f0f0f0; /* 線をより繊細に */
+        display: flex;
+        align-items: center; /* 垂直方向の中央揃え */
+    }
+
+    /* 各カラム内の余白をゼロにして、コンテナ側のpaddingで制御 */
     [data-testid="column"] { 
-        display: flex; 
-        flex-direction: column; 
-        justify-content: center; 
-        padding: 5px 10px !important; 
+        padding: 0 10px !important;
+        justify-content: center;
     }
     
-    /* 各行の区切り線と余白 */
-    .book-row {
-        padding: 12px 0; /* 上下の余白 */
-        border-bottom: 1px solid #ececec;
-        width: 100%;
+    /* テキストのスタイル調整 */
+    .title-text { 
+        font-weight: 600; 
+        color: #1a1a1a; 
+        font-size: 1.05rem;
+        margin-bottom: 4px; /* 著者名との距離 */
+        line-height: 1.4; 
+    }
+    .author-text { 
+        color: #757575; 
+        font-size: 0.85rem; 
     }
     
-    /* テキストのスタイル：重なり防止 */
-    .title-text { font-weight: 600; color: #1a1a1a; margin-bottom: 2px; line-height: 1.4; }
-    .author-text { color: #707070; font-size: 0.85rem; line-height: 1.2; }
-    
-    /* ボタン：サイズと余白の統一 */
+    /* ボタンの調整：文字と線の衝突を防ぐ */
     .stButton button {
-        border-radius: 6px;
-        height: 36px !important;
+        border-radius: 8px;
+        height: 38px !important;
         border: 1px solid #e0e0e0;
-        margin: 2px 0;
+        background-color: #fff;
     }
     
     /* 入力欄 */
     div[data-testid="stTextInput"] input {
-        border-radius: 6px !important;
-        height: 40px !important;
+        border-radius: 8px !important;
+        height: 42px !important;
     }
 
     [data-testid="stSidebar"] { display: none; }
@@ -89,7 +96,7 @@ if not st.session_state.user_name:
     st.stop()
 
 # --- NAVIGATION ---
-st.markdown("<div style='margin: 10px 0;'></div>", unsafe_allow_html=True)
+st.write("")
 c_nav1, c_nav2, c_nav3 = st.columns([1, 1, 3])
 with c_nav1:
     if st.button("📖 候補を選ぶ", use_container_width=True, type="primary" if st.session_state.page == "list" else "secondary"):
@@ -104,25 +111,25 @@ with c_nav3:
         st.cache_data.clear()
         st.rerun()
 
-st.markdown("<hr style='margin: 15px 0; border:none; border-top:1px solid #eee;'>", unsafe_allow_html=True)
+st.divider()
 
 # --- PAGE 1: BOOK LIST ---
 if st.session_state.page == "list":
-    st.subheader("Book List")
+    st.header("Book List")
     if not df_books.empty:
         cats = ["すべて"] + list(df_books["カテゴリ"].unique())
         selected_cat = st.selectbox("カテゴリを絞り込む", cats, label_visibility="collapsed")
         display_df = df_books if selected_cat == "すべて" else df_books[df_books["カテゴリ"] == selected_cat]
 
         for cat_name in display_df["カテゴリ"].unique():
-            st.markdown(f"<div style='margin-top:20px; color:#333; font-weight:bold;'>📂 {cat_name}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='margin: 30px 0 10px 0; color:#1a1a1a; font-weight:bold; font-size:1.2rem;'>📂 {cat_name}</div>", unsafe_allow_html=True)
             cat_books = display_df[display_df["カテゴリ"] == cat_name]
             
             for _, row in cat_books.iterrows():
                 title, author, url = row.get("書籍名", "無題"), row.get("著者名", "不明"), row.get("URL")
                 
-                # コンテナを使用して1行を構築
-                st.markdown('<div class="book-row">', unsafe_allow_html=True)
+                # HTMLクラスでコンテナ化
+                st.markdown('<div class="book-row-container">', unsafe_allow_html=True)
                 c1, c2, c3 = st.columns([4, 0.8, 0.8])
                 with c1:
                     st.markdown(f"<div class='title-text'>{title}</div><div class='author-text'>{author}</div>", unsafe_allow_html=True)
@@ -144,7 +151,7 @@ else:
         summary = df_v.groupby("書籍タイトル")["ポイント"].sum().reset_index().sort_values("ポイント", ascending=False)
         st.dataframe(summary, hide_index=True, use_container_width=True)
     
-    st.markdown("<div style='margin: 30px 0;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='margin: 40px 0;'></div>", unsafe_allow_html=True)
     
     my_name = st.session_state.user_name
     st.subheader(f"🗳️ {my_name} さんの投票")
@@ -152,10 +159,10 @@ else:
     my_v_data = df_votes[(df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票")]
     voted_titles = {row["書籍タイトル"]: row["ポイント"] for _, row in my_v_data.iterrows()}
 
-    if st.button("自分の投票をすべて取消", key="revoke", use_container_width=False):
+    if st.button("自分の投票をすべて取消", key="revoke"):
         save_and_refresh(df_votes[~((df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票"))])
 
-    st.markdown("<div style='margin: 10px 0;'></div>", unsafe_allow_html=True)
+    st.write("")
     nominated = df_votes[df_votes["アクション"] == "選出"]
     
     if nominated.empty:
@@ -165,7 +172,7 @@ else:
             b_title = n_row["書籍タイトル"]
             this_p = voted_titles.get(b_title, 0)
             
-            st.markdown('<div class="book-row">', unsafe_allow_html=True)
+            st.markdown('<div class="book-row-container">', unsafe_allow_html=True)
             vc1, vc2, vc3 = st.columns([3, 0.7, 0.7])
             with vc1:
                 st.markdown(f"<div class='title-text'>{b_title}</div><div class='author-text'>推薦：{n_row['ユーザー名']}さん</div>", unsafe_allow_html=True)
