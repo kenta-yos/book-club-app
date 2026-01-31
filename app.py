@@ -58,41 +58,52 @@ with st.sidebar:
 with tab_list:
     st.header("読みたい本を選ぼう")
     
-    # カテゴリ絞り込み
+    # カテゴリ絞り込み（以前の機能も残しつつ、表示をグループ化します）
     all_cats = ["すべて"] + list(df_books["カテゴリ"].unique())
     selected_cat = st.selectbox("カテゴリ表示切替", all_cats)
     
     display_df = df_books if selected_cat == "すべて" else df_books[df_books["カテゴリ"] == selected_cat]
 
-    for _, row in display_df.iterrows():
-        title = row.get("書籍名", "無題")
-        author = row.get("著者名", "不明")
-        cat = row.get("カテゴリ", "-")
-        url = row.get("URL", "#")
+    # --- カテゴリでくくる（グループ化）処理 ---
+    # 表示対象のデータからユニークなカテゴリを取得
+    target_categories = display_df["カテゴリ"].unique()
 
-        # 各書籍を「開閉式（expander）」にして詳細を閉じ込める
-        with st.expander(f"📔 {title} / {author}"):
-            st.write(f"**カテゴリ:** {cat}")
-            if pd.notnull(url) and str(url).startswith("http"):
-                st.link_button("🔗 書籍詳細サイトを表示", str(url))
-            
-            # 選出フォーム
-            with st.form(key=f"form_{title}"):
-                u_name = st.text_input("あなたの名前", key=f"name_{title}")
-                submit = st.form_submit_button("この本を読書会候補に選ぶ")
-                if submit:
-                    if u_name:
-                        new_row = pd.DataFrame([{
-                            "日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            "アクション": "選出",
-                            "書籍タイトル": title,
-                            "ユーザー名": u_name,
-                            "ポイント": 0
-                        }])
-                        st.session_state.local_votes = pd.concat([st.session_state.local_votes, new_row], ignore_index=True)
-                        st.success(f"{title} を候補に追加しました！「投票」タブを見てね。")
-                    else:
-                        st.warning("名前を入力してください")
+    for cat_name in target_categories:
+        # カテゴリごとの見出しを表示
+        st.subheader(f"📂 {cat_name}")
+        
+        # そのカテゴリに属する本だけを抽出
+        cat_books = display_df[display_df["カテゴリ"] == cat_name]
+        
+        for _, row in cat_books.iterrows():
+            title = row.get("書籍名", "無題")
+            author = row.get("著者名", "不明")
+            url = row.get("URL", "#")
+
+            # 各書籍を「開閉式（expander）」にして詳細を閉じ込める
+            with st.expander(f"📔 {title} / {author}"):
+                if pd.notnull(url) and str(url).startswith("http"):
+                    st.link_button("🔗 書籍詳細サイトを表示", str(url))
+                
+                # 選出フォーム
+                with st.form(key=f"form_{title}"):
+                    u_name = st.text_input("あなたの名前", key=f"name_{title}")
+                    submit = st.form_submit_button("この本を読書会候補に選ぶ")
+                    if submit:
+                        if u_name:
+                            new_row = pd.DataFrame([{
+                                "日時": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "アクション": "選出",
+                                "書籍タイトル": title,
+                                "ユーザー名": u_name,
+                                "ポイント": 0
+                            }])
+                            st.session_state.local_votes = pd.concat([st.session_state.local_votes, new_row], ignore_index=True)
+                            st.success(f"{title} を候補に追加しました！「投票」タブを見てね。")
+                        else:
+                            st.warning("名前を入力してください")
+        
+        st.divider() # カテゴリごとに区切り線を入れる
 
 # --- 【2】投票画面 ---
 with tab_vote:
