@@ -7,14 +7,12 @@ import time
 # --- 初期設定 ---
 st.set_page_config(page_title="読書会アプリ", layout="wide")
 
-# CSSで横並びのパーツがズレないよう微調整
 st.markdown("""
     <style>
     .stButton button { border-radius: 5px; width: 100%; }
     [data-testid="stSidebar"] { display: none; }
     .main .block-container { padding-top: 1.5rem; max-width: 1100px; }
-    hr { margin: 0.5rem 0; }
-    /* 入力欄の高さをボタンに合わせる */
+    hr { margin: 0.5rem 0; border: 0.1px solid #f0f2f6; }
     div[data-testid="stTextInput"] > div > div > input { height: 45px; }
     </style>
     """, unsafe_allow_html=True)
@@ -47,7 +45,7 @@ df_books, df_votes = load_data()
 
 tab_list, tab_vote = st.tabs(["📖 Bookリスト", "🗳️ 投票・集計"])
 
-# --- 【1】Bookリスト画面（1行集約版） ---
+# --- 【1】Bookリスト画面 ---
 with tab_list:
     st.header("候補に登録")
     if not df_books.empty:
@@ -59,7 +57,6 @@ with tab_list:
             st.subheader(f"📂 {cat_name}")
             cat_books = display_df[display_df["カテゴリ"] == cat_name]
             
-            # ヘッダー代わりのラベル
             h_c1, h_c2, h_c3, h_c4 = st.columns([3, 1, 2, 1])
             h_c1.caption("書籍名 / 著者")
             h_c2.caption("詳細")
@@ -72,22 +69,16 @@ with tab_list:
                 author = row.get("著者名", "不明")
                 url = row.get("URL")
                 
-                # 1行のレイアウト
                 c1, c2, c3, c4 = st.columns([3, 1, 2, 1])
-                
                 with c1:
                     st.markdown(f"**{title}** \n<small>{author}</small>", unsafe_allow_html=True)
-                
                 with c2:
                     if pd.notnull(url) and str(url).startswith("http"):
                         st.link_button("🔗 詳細", str(url))
                     else:
                         st.write("-")
-                
                 with c3:
-                    # 各行で独立した名前入力
                     name_input = st.text_input("名前", key=f"name_in_{title}", label_visibility="collapsed")
-                
                 with c4:
                     if st.button("選ぶ", key=f"btn_{title}"):
                         if name_input:
@@ -95,10 +86,9 @@ with tab_list:
                             save_votes(pd.concat([df_votes, new_row], ignore_index=True))
                         else:
                             st.toast("名前を入力してください！")
-                
-                st.markdown("<hr style='border:0.1px solid #f0f2f6'>", unsafe_allow_html=True)
+                st.markdown("<hr>", unsafe_allow_html=True)
 
-# --- 【2】投票・集計画面（変更なし） ---
+# --- 【2】投票・集計画面 ---
 with tab_vote:
     st.subheader("👤 ユーザー設定")
     my_name = st.text_input("あなたの名前を入力してください", key="my_login_name")
@@ -125,4 +115,39 @@ with tab_vote:
     if not my_name:
         st.info("名前を入力すると投票機能が有効になります。")
     else:
-        my_v_data = df_votes[(df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "
+        # 文字列が切れていた部分を修正
+        my_v_data = df_votes[(df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票")]
+        voted_1_book = my_v_data[my_v_data["ポイント"].astype(float) == 1]["書籍タイトル"].tolist()
+        voted_2_book = my_v_data[my_v_data["ポイント"].astype(float) == 2]["書籍タイトル"].tolist()
+        has_voted_1 = len(voted_1_book) > 0
+        has_voted_2 = len(voted_2_book) > 0
+
+        if st.button(f"🚩 {my_name}さんの投票をすべて取り消す"):
+            filtered_df = df_votes[~((df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票"))]
+            save_votes(filtered_df)
+
+        st.subheader("🗳️ 投票エリア")
+        nominated = df_votes[df_votes["アクション"] == "選出"]
+        
+        if nominated.empty:
+            st.info("選出された候補がまだありません。")
+        else:
+            for _, n_row in nominated.iterrows():
+                b_title = n_row["書籍タイトル"]
+                this_p = 0
+                if b_title in voted_1_book: this_p = 1
+                if b_title in voted_2_book: this_p = 2
+                
+                vc1, vc2, vc3 = st.columns([3, 0.6, 0.6])
+                vc1.markdown(f"**{b_title}** <small>({n_row['ユーザー名']}さん選出)</small>", unsafe_allow_html=True)
+                
+                d1 = has_voted_1 or (this_p == 2)
+                if vc2.button(f"+1", key=f"p1_{b_title}", type="primary" if this_p==1 else "secondary", disabled=d1):
+                    new_v = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "投票", "書籍タイトル": b_title, "ユーザー名": my_name, "ポイント": 1}])
+                    save_votes(pd.concat([df_votes, new_v], ignore_index=True))
+
+                d2 = has_voted_2 or (this_p == 1)
+                if vc3.button(f"+2", key=f"p2_{b_title}", type="primary" if this_p==2 else "secondary", disabled=d2):
+                    new_v = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "投票", "書籍タイトル": b_title, "ユーザー名": my_name, "ポイント": 2}])
+                    save_votes(pd.concat([df_votes, new_v], ignore_index=True))
+                st.markdown("---")
