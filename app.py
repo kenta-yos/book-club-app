@@ -9,12 +9,12 @@ st.set_page_config(page_title="読書会アプリ", layout="wide")
 
 # API・スプレッドシート接続
 try:
-    # --- 修正ポイント：Secretsの辞書を取得し、private_key内の文字を整形 ---
+    # Secretsから接続情報を取得し、private_keyの改行文字を本物の改行に変換
     creds_dict = dict(st.secrets["connections"]["gsheets"])
     creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
     
-    # 修正した辞書を使って接続
-    conn = st.connection("gsheets", type=GSheetsConnection, **creds_dict)
+    # 【修正ポイント】type=GSheetsConnection を外し、文字列としての type を辞書から渡す
+    conn = st.connection("gsheets", **creds_dict)
     
     # Gemini設定
     genai.configure(api_key=st.secrets["gemini"]["api_key"])
