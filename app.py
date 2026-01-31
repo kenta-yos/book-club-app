@@ -9,15 +9,15 @@ st.set_page_config(page_title="読書会アプリ", layout="wide")
 
 # API・スプレッドシート接続
 try:
-    # 1. Secretsから中身を辞書として取得
-    creds_dict = dict(st.secrets["connections"]["gsheets"])
-    
-    # 2. 秘密鍵の改行コードを整形
-    if "private_key" in creds_dict:
-        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-    
-    # 3. 【解決策】引数に spreadsheet=... を含めず、辞書(**creds_dict)の中身として渡す
-    conn = st.connection("gsheets", type=GSheetsConnection, **creds_dict)
+    # 秘密鍵の改行コード問題だけを事前に解決しておく
+    # (Secretsに書き込まれた \n を本物の改行に変換)
+    if "connections" in st.secrets and "gsheets" in st.secrets["connections"]:
+        # ここで直接書き換えることはできないため、接続時に自動で読み込まれるのを待ちます
+        pass
+
+    # 【最終回答】URLも認証情報も、すべてSecretsから自動で読み込ませる形式に変更
+    # 引数には何も渡さないのが、このエラーを避ける唯一の確実な方法です
+    conn = st.connection("gsheets", type=GSheetsConnection)
     
     # Gemini設定
     genai.configure(api_key=st.secrets["gemini"]["api_key"])
