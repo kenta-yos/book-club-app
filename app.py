@@ -45,15 +45,21 @@ def fetch_data():
     except Exception as e:
         return empty_books, empty_votes
 
-def save_and_refresh(df):
-    try:
-        conn.update(worksheet="votes", data=df)
-        st.cache_data.clear()
-        time.sleep(1.2)
-        st.rerun()
-    except:
-        st.cache_data.clear()
-        st.rerun()
+def save_and_refresh(df, message="完了"):
+    with st.spinner("更新中..."):
+        try:
+            conn.update(worksheet="votes", data=df)
+            st.cache_data.clear()
+            time.sleep(1) # 保存完了待ち
+        except:
+            st.error("保存に失敗しました。")
+            return
+    
+    msg_placeholder = st.empty()
+    msg_placeholder.success(message)
+    time.sleep(3)
+    msg_placeholder.empty()
+    st.rerun()
 
 df_books, df_votes = fetch_data()
 
@@ -84,13 +90,24 @@ with c_nav3:
 
 st.divider()
 
-# 現在選出されている本のタイトルリストを取得（重複チェック用）
+# 現在選出されている本のタイトルリスト
 nominated_titles = df_votes[df_votes["アクション"] == "選出"]["書籍タイトル"].unique().tolist()
 
 # --- PAGE 1: BOOK LIST ---
 if st.session_state.page == "list":
     st.header("Book List")
-    
+
+    # 自分が選んだ本のリセット機能
+    my_nominations = df_votes[(df_votes["ユーザー名"] == st.session_state.user_name) & (df_votes["アクション"] == "選出")]
+    if not my_nominations.empty:
+        if st.button("自分が選出した本をリセット（選び直す）", type="secondary"):
+            # 自分が選出した本の「選出」行と、その本に対する「全投票」を削除
+            titles_to_remove = my_nominations["書籍タイトル"].unique()
+            # 自分が選出したアクション以外を残す ＋ 自分が選出した本以外への投票を残す
+            # ロジック： 削除対象の本に関連する全ての行（選出・投票）を消す
+            updated_votes = df_votes[~df_votes["書籍タイトル"].isin(titles_to_remove)]
+            save_and_refresh(updated_votes, "リセットが完了しました")
+
     if df_books.empty:
         st.warning("Bookリストが読み込めませんでした。更新ボタンを押してください。")
     else:
@@ -109,8 +126,6 @@ if st.session_state.page == "list":
                 title = row.get("書籍名", "無題")
                 author = row.get("著者名", "不明")
                 url = row.get("URL")
-                
-                # すでに選出されているかチェック
                 is_already_nominated = title in nominated_titles
                 
                 c1, c2, c3 = st.columns([4, 0.8, 0.8])
@@ -122,7 +137,6 @@ if st.session_state.page == "list":
                 with c3:
                     btn_label = "選出済" if is_already_nominated else "選ぶ"
                     if st.button(btn_label, key=f"sel_{title}", use_container_width=True, disabled=is_already_nominated):
-                        # 念のための最新データチェック
                         _, latest_votes = fetch_data()
                         if title in latest_votes[latest_votes["アクション"] == "選出"]["書籍タイトル"].unique():
                             st.error("この本はすでに選ばれています。")
@@ -142,7 +156,6 @@ else:
         vote_data = df_v[df_v["アクション"] == "投票"]
         
         summary_list = []
-        # 選出された順序を維持
         current_nominated = df_v[df_v["アクション"] == "選出"]["書籍タイトル"].unique()
         
         for title in current_nominated:
@@ -170,7 +183,7 @@ else:
     voted_titles = {row["書籍タイトル"]: row["ポイント"] for _, row in my_v_data.iterrows()}
 
     if st.button("自分の投票をすべてリセット", key="revoke"):
-        save_and_refresh(df_votes[~((df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票"))])
+        save_and_refresh(df_votes[~((df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票"))], "投票をリセットしました")
 
     st.write("")
     nominated_rows = df_votes[df_votes["アクション"] == "選出"]
@@ -178,13 +191,21 @@ else:
     if nominated_rows.empty:
         st.info("候補がまだ選ばれていません。")
     else:
+        # URLボタン表示のため、BookリストからURLを参照できるように辞書化
+        url_dict = pd.Series(df_books.URL.values, index=df_books.書籍名).to_dict()
+
         for _, n_row in nominated_rows.iterrows():
             b_title = n_row["書籍タイトル"]
             this_p = voted_titles.get(b_title, 0)
+            b_url = url_dict.get(b_title)
             
-            vc1, vc2, vc3 = st.columns([3, 0.7, 0.7])
+            # カラムを調整（詳細ボタンを入れるために比率を変更）
+            vc1, vc_url, vc2, vc3 = st.columns([3, 0.8, 0.7, 0.7])
             with vc1:
                 st.markdown(f"<div class='title-text'>{b_title}</div><div class='author-text'>推薦：{n_row['ユーザー名']}さん</div>", unsafe_allow_html=True)
+            with vc_url:
+                if pd.notnull(b_url) and str(b_url).startswith("http"):
+                    st.link_button("詳細", str(b_url), use_container_width=True)
             
             d1 = (1 in voted_titles.values()) or (this_p == 2)
             with vc2:
@@ -201,6 +222,6 @@ else:
 
     with st.expander("データリセット"):
         if st.button("全得点リセット"):
-            save_and_refresh(df_votes[df_votes["アクション"] == "選出"])
+            save_and_refresh(df_votes[df_votes["アクション"] == "選出"], "ランキングをリセットしました")
         if st.button("全データ完全消去", type="primary"):
-            save_and_refresh(pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"]))
+            save_and_refresh(pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"]), "全てのデータを消去しました")
