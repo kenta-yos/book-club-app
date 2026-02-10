@@ -350,6 +350,20 @@ with tab2:
 # --- Tab 3: History (これまでの読書会) ---
 with tab3:
     st.subheader("📖 開催履歴")
+    # 1. 過去のイベントデータを取得（まだ取得していない場合）
+    # すでに他の場所で定義済みなら不要ですが、安全のためにここでしっかり取得します
+    try:
+        response = supabase.table("events").select("*, books(*)").execute()
+        all_events = pd.DataFrame(response.data)
+        
+        # 今日より前の日付のイベントを「過去」とする
+        from datetime import datetime
+        today = datetime.now().date()
+        all_events["event_date_dt"] = pd.to_datetime(all_events["event_date"]).dt.date
+        past_events = all_events[all_events["event_date_dt"] < today]
+    except Exception as e:
+        st.error(f"データの取得に失敗しました: {e}")
+        past_events = pd.DataFrame() # エラー時は空のDFにする
 
     if not past_events.empty:
         # 1. データを日付順にソート（新しい順）
