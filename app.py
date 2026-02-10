@@ -100,11 +100,16 @@ if not st.session_state.USER:
 df_books, df_votes = fetch_data()
 
 # ヘッダー
-c_head1, c_head2 = st.columns([0.8, 0.2])
+c_head1, c_head_btn, c_head2 = st.columns([0.6, 0.2, 0.2]) # カラムを1つ増やす
 with c_head1:
-    st.subheader(f"{st.session_state.U_ICON} {st.session_state.USER} さんとしてログイン中")
+    st.subheader(f"{st.session_state.U_ICON} {st.session_state.USER} さん")
+with c_head_btn:
+    # 💡 共通の更新ボタン
+    if st.button("🔄 更新", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
 with c_head2:
-    if st.button("ログアウト", use_container_width=True):
+    if st.button("Logout", use_container_width=True):
         st.session_state.USER = None
         st.rerun()
 
@@ -158,10 +163,6 @@ else:
     # 💡 手動更新ボタンとヘッダー
     col_rank, col_refresh = st.columns([0.7, 0.3])
     with col_rank: st.header("🏆 Ranking")
-    with col_refresh:
-        if st.button("🔄 最新に更新", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
 
     nominated_rows = df_votes[df_votes["action"] == "選出"]
     
@@ -212,37 +213,49 @@ else:
         # URL参照用の辞書作成 (詳細ボタン用)
         url_map = dict(zip(df_books['id'].astype(str), df_books['url']))
 
-        for _, n in nominated_rows.iterrows():
-            # n["book_id"] を確実に文字列のIDとして取得
+for _, n in nominated_rows.iterrows():
             b_id = str(n["book_id"])
             current_p = int(my_votes[my_votes["book_id"] == b_id]["points"].sum())
             b_url = url_map.get(b_id)
             
-            # レイアウト調整：タイトル, 詳細ボタン, 1点, 2点
-            vc1, vc_url, vc2, vc3 = st.columns([3, 0.8, 0.7, 0.7])
+            # 💡 推薦者の名前とアイコンを取得
+            n_user = n["user_name"]
+            n_icon = user_icon_map.get(n_user, "👤")
             
+            # 💡 自分が推薦した本かどうか判定
+            is_my_nomination = (n_user == st.session_state.USER)
+            
+            vc1, vc_url, vc2, vc3 = st.columns([3, 1, 1, 1])
             with vc1:
                 st.markdown(f"""
-                    <div class='title-text'>{n['書籍タイトル']}</div>
-                    <div style='color: #707070; font-size: 0.8rem;'>{n['著者名']}</div>
+                        <div style='margin-bottom: 4px;'>
+                            <strong style='font-size: 1.1rem;'>{n['書籍タイトル']}</strong>
+                        </div>
+                        <div style='display: flex; align-items: center; gap: 8px; flex-wrap: wrap;'>
+                            <span style='color: gray; font-size: 0.8rem;'>{n['著者名']}</span>
+                            <span style='background: #fdfdfd; border: 1px solid #eee; border-radius: 4px; padding: 2px 6px; font-size: 0.75rem; color: #666; display: flex; align-items: center; gap: 3px;'>
+                                <small>推薦:</small> {n_icon} {n_user}
+                            </span>
+                        </div>
                 """, unsafe_allow_html=True)
-            
+                        
             with vc_url:
                 if pd.notnull(b_url) and str(b_url).startswith("http"):
                     st.link_button("詳細", b_url, use_container_width=True)
             
             with vc2:
-                d1 = (1 in v_points) or (current_p > 0)
+                # 💡 自分の本、または既に1点を使っている場合はグレーアウト
+                d1 = is_my_nomination or (1 in v_points) or (current_p > 0)
                 if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True):
                     save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 1})
             with vc3:
-                d2 = (2 in v_points) or (current_p > 0)
+                # 💡 自分の本、または既に2点を使っている場合はグレーアウト
+                d2 = is_my_nomination or (2 in v_points) or (current_p > 0)
                 if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True):
                     save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2})
             
-            # 区切り線
-            st.markdown('<div style="border-bottom: 1px solid #eee; margin-bottom: 10px;"></div>', unsafe_allow_html=True)
-
+            st.markdown('<div style="border-bottom: 1px solid #f9f9f9; margin-bottom: 10px;"></div>', unsafe_allow_html=True)
+    
         st.divider()
         st.subheader(f"🗳️ {st.session_state.U_ICON} {st.session_state.USER} さんの投票")
         
