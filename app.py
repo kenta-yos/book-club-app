@@ -469,30 +469,7 @@ with tab3:
                 
 # --- Tab 4: Admin (管理者画面) ---
 with tab4:
-    # 1. 継続登録セクション (前回のイベントがある場合のみ表示)
-    if not df_events.empty:
-        # 最新のイベントを1件取得
-        last_event = df_events.sort_values("event_date", ascending=False).iloc[0]
-        last_book = last_event.get("books", {})
-        
-        st.subheader("🔁 前回の本を継続する")
-        with st.container(border=True):
-            st.markdown(f"前回の本: **{last_book.get('title', '不明')}**")
-            cont_date = st.date_input("継続開催の日付", key="cont_date")
-            
-            if st.button("この本で次回の予告を作る（継続）", use_container_width=True, type="secondary"):
-                new_event = {
-                    "event_date": str(cont_date),
-                    "book_id": str(last_event["book_id"])
-                }
-                supabase.table("events").insert(new_event).execute()
-                st.success(f"「{last_book.get('title')}」の継続開催を登録しました！")
-                st.cache_data.clear()
-                time.sleep(1)
-                st.rerun()
-        st.divider()
-
-    # 2. 新規選出セクション (既存のコード)
+    # --- 1. 新規選出セクション（ここがメイン！） ---
     st.subheader("🆕 新しい本を確定する")
     nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
     nominated_books = df_books[df_books["id"].astype(str).isin([str(x) for x in nominated_ids])]
@@ -505,8 +482,8 @@ with tab4:
         final_list = df_display_books
 
     with st.form("admin_form"):
-        st.write("次回の開催情報を登録")
-        next_date = st.date_input("読書会の日程")
+        st.write("選出リストから次回の本を登録します")
+        next_date = st.date_input("読書会の日程", key="new_date")
         
         if not final_list.empty:
             book_options = {f"[{row['category']}] {row['title']}": row['id'] for _, row in final_list.iterrows()}
@@ -528,7 +505,31 @@ with tab4:
                 time.sleep(1)
                 st.rerun()
 
-    # 3. 🧹 投票リセットセクション (前に追加したもの)
+    st.divider()
+
+    # --- 2. 継続登録セクション（前回の本をもう一度） ---
+    if not df_events.empty:
+        # 最新のイベントを1件取得
+        last_event = df_events.sort_values("event_date", ascending=False).iloc[0]
+        last_book = last_event.get("books", {})
+        
+        st.subheader("🔁 前回の本を継続する")
+        with st.container(border=True):
+            st.markdown(f"前回の課題本: **{last_book.get('title', '不明')}**")
+            cont_date = st.date_input("継続開催の日付", key="cont_date")
+            
+            if st.button("この本で次回の予告を作る（継続）", use_container_width=True):
+                new_event = {
+                    "event_date": str(cont_date),
+                    "book_id": str(last_event["book_id"])
+                }
+                supabase.table("events").insert(new_event).execute()
+                st.success(f"「{last_book.get('title')}」の継続開催を登録しました！")
+                st.cache_data.clear()
+                time.sleep(1)
+                st.rerun()
+    
+    # --- 3. データの管理 ---
     st.divider()
     st.subheader("🧹 データの管理")
     confirm_reset = st.checkbox("全ユーザーの投票リセットを実行する")
