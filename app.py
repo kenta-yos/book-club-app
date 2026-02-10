@@ -15,10 +15,21 @@ st.set_page_config(page_title="Book Club", layout="wide")
 # スタイル調整
 st.markdown("""
     <style>
+    /* ① ヘッダー（上部のバーとメニューボタン）を消す */
+    header {visibility: hidden;}
+    
+    /* ② フッター（Made with Streamlit）を消す */
+    footer {visibility: hidden;}
+    
+    /* ③ 上部の余白を詰める（消したヘッダー分の隙間を埋める） */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 0rem;
+    }
+
+    /* 既存のスタイル */
     [data-testid="stHorizontalBlock"] { justify-content: center !important; }
     .stButton button { border-radius: 8px; }
-    /* ログインボタンを大きく見せる */
-    .login-btn button { height: 100px !important; font-size: 1.2rem !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -227,18 +238,17 @@ else:
             
             vc1, vc_url, vc2, vc3 = st.columns([3, 1, 1, 1])
             with vc1:
+                # 💡 タイトルとラベルを同じ div 内に入れ、flex-wrap で横並びに
                 st.markdown(f"""
-                        <div style='margin-bottom: 4px;'>
-                            <strong style='font-size: 1.1rem;'>{n['書籍タイトル']}</strong>
-                        </div>
-                        <div style='display: flex; align-items: center; gap: 8px; flex-wrap: wrap;'>
-                            <span style='color: gray; font-size: 0.8rem;'>{n['著者名']}</span>
-                            <span style='background: #fdfdfd; border: 1px solid #eee; border-radius: 4px; padding: 2px 6px; font-size: 0.75rem; color: #666; display: flex; align-items: center; gap: 3px;'>
-                                <small>推薦:</small> {n_icon} {n_user}
-                            </span>
-                        </div>
+                    <div style='display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 2px;'>
+                        <strong style='font-size: 1.1rem; line-height: 1.2;'>{n['書籍タイトル']}</strong>
+                        <span style='background: #fdfdfd; border: 1px solid #eee; border-radius: 4px; padding: 1px 6px; font-size: 0.7rem; color: #666; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;'>
+                            <small style='color: #aaa;'>推薦:</small> {n_icon} {n_user}
+                        </span>
+                    </div>
+                    <div style='color: gray; font-size: 0.8rem;'>{n['著者名']}</div>
                 """, unsafe_allow_html=True)
-                        
+    
             with vc_url:
                 if pd.notnull(b_url) and str(b_url).startswith("http"):
                     st.link_button("詳細", b_url, use_container_width=True)
