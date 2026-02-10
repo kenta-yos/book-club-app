@@ -196,13 +196,17 @@ else:
         my_votes = vote_only[vote_only["user_name"] == st.session_state.USER]
         v_points = my_votes["points"].tolist()
 
+        
+        
         for _, n in nominated_rows.iterrows():
             b_id = n["book_id"]
+            # ここを修正：n["user_name"] などではなくJOIN済みの「書籍タイトル」を表示
             current_p = my_votes[my_votes["book_id"] == b_id]["points"].sum()
             
             vc1, vc2, vc3 = st.columns([3, 1, 1])
             with vc1:
-                st.write(f"**{n['書籍タイトル']}**")
+                # 正しく「タイトル」を表示
+                st.markdown(f"<div class='title-text'>{n['書籍タイトル']}</div>", unsafe_allow_html=True)
             with vc2:
                 d1 = (1 in v_points) or (current_p > 0)
                 if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True):
