@@ -371,12 +371,12 @@ with tab3:
             cat_list = [c for c in cat_data if c is not None]
 
             if cat_list:
-                # 2. DataFrameとして集計（ここがポイント）
-                df_counts = pd.Series(cat_list).value_counts().reset_index()
-                df_counts.columns = ["category", "count"]
+                # 2. Seriesを作成（インデックスをカテゴリ名、値をカウントにする）
+                # Streamlitの古いバージョンでもこの形なら自動で円グラフになります
+                cat_counts = pd.Series(cat_list).value_counts()
                 
-                # 3. グラフ表示（indexを指定して確実にラベルを認識させる）
-                st.pie_chart(df_counts, names="category", values="count")
+                # 3. グラフ表示（引数を最小限に）
+                st.pie_chart(cat_counts)
             else:
                 st.info("集計できるカテゴリデータがありません。")
                 
