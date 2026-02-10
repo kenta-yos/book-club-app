@@ -349,19 +349,51 @@ with tab2:
 
 # --- Tab 3: History (これまでの読書会) ---
 with tab3:
-    st.subheader("これまでの読書会")
-    # 開催日が過ぎたものを表示
-    past_events = df_events[df_events["event_date"] < datetime.now().strftime("%Y-%m-%d")]
-    
-    if past_events.empty:
-        st.write("過去の履歴はありません。")
+    st.subheader("📖 開催履歴")
+
+    if not past_events.empty:
+        # 1. データを日付順にソート（新しい順）
+        past_events = past_events.sort_values("event_date", ascending=False)
+        
+        for _, row in past_events.iterrows():
+            book = row.get("books", {})
+            if not book: continue
+
+            # Supabaseから各データを取得
+            date_str = row["event_date"].replace("-", "/")
+            title = book.get("title", "不明")
+            author = book.get("author", "不明")
+            category = book.get("category", "その他")
+            target_url = book.get("url") # Supabaseに登録されているURL
+
+            # 🎨 カテゴリのバッジ色（お好みで調整してください）
+            cat_colors = {
+                "技術書": "#E3F2FD", "ビジネス": "#F1F8E9", 
+                "小説": "#FFFDE7", "哲学": "#F3E5F5", "デザイン": "#FCE4EC"
+            }
+            bg_color = cat_colors.get(category, "#F5F5F5")
+
+            # 🛠️ タイトルにリンクを付与（URLがある場合のみ<a>タグ、なければテキストのみ）
+            if target_url:
+                title_html = f'<a href="{target_url}" target="_blank" style="text-decoration: none; color: #1E88E5; font-weight: 600;">{title}</a>'
+            else:
+                title_html = f'<span style="color: #333; font-weight: 600;">{title}</span>'
+
+            # 🛠️ HTML一行レイアウト
+            st.markdown(f"""
+            <div style="display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; gap: 15px; font-size: 0.9rem;">
+                <span style="color: #888; white-space: nowrap; width: 90px;">{date_str}</span>
+                <span style="color: #555; white-space: nowrap; width: 110px; overflow: hidden; text-overflow: ellipsis;">{author}</span>
+                <span style="background-color: {bg_color}; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; white-space: nowrap; border: 1px solid #ddd;">
+                    {category}
+                </span>
+                <div style="flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    {title_html}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
     else:
-        # 一覧表示
-        for _, ev in past_events.iterrows():
-            b = ev.get("books", {})
-            with st.container(border=True):
-                st.write(f"📅 {ev['event_date']}")
-                st.markdown(f"**{b.get('title')}** / {b.get('author')} ({b.get('category')})")
+        st.info("過去の開催履歴はありません。")
         
         # --- 究極の棒グラフ (Altair版：数字を外側に表示) ---
         st.divider()
