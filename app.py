@@ -350,8 +350,7 @@ with tab2:
 # --- Tab 3: History (これまでの読書会) ---
 with tab3:
     st.subheader("📖 開催履歴")
-    # 1. 過去のイベントデータを取得（まだ取得していない場合）
-    # すでに他の場所で定義済みなら不要ですが、安全のためにここでしっかり取得します
+
     try:
         response = supabase.table("events").select("*, books(*)").execute()
         all_events = pd.DataFrame(response.data)
@@ -367,7 +366,7 @@ with tab3:
 
     if not past_events.empty:
         past_events = past_events.sort_values("event_date", ascending=False)
-        
+            
         for _, row in past_events.iterrows():
             book = row.get("books", {})
             if not book: continue
@@ -384,28 +383,28 @@ with tab3:
             }
             bg_color = cat_colors.get(category, "#F5F5F5")
 
-            # タイトルリンク（URLがあれば<a>、なければテキスト）
             if target_url:
-                title_html = f'<a href="{target_url}" target="_blank" style="text-decoration: none; color: #1E88E5; font-weight: 600; word-break: break-all;">{title}</a>'
+                title_html = f'<a href="{target_url}" target="_blank" style="text-decoration: none; color: #1E88E5; font-weight: 600; font-size: 1rem; line-height: 1.4;">{title}</a>'
             else:
-                title_html = f'<span style="color: #333; font-weight: 600; word-break: break-all;">{title}</span>'
+                title_html = f'<span style="color: #333; font-weight: 600; font-size: 1rem; line-height: 1.4;">{title}</span>'
 
             # HTMLレイアウト
             st.markdown(f"""
-            <div style="display: flex; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #eee; gap: 12px;">
-                <div style="color: #888; font-size: 0.85rem; width: 85px; flex-shrink: 0; padding-top: 4px;">
-                    {date_str}
+            <div style="display: flex; align-items: flex-start; padding: 15px 0; border-bottom: 1px solid #eee; gap: 15px;">
+                <div style="width: 100px; flex-shrink: 0;">
+                    <div style="color: #888; font-size: 0.8rem; margin-bottom: 4px;">{date_str}</div>
+                    <div style="color: #555; font-size: 0.85rem; line-height: 1.2; word-break: break-all;">{author}</div>
                 </div>
-                <div style="color: #555; font-size: 0.9rem; width: 100px; flex-shrink: 0; padding-top: 2px; line-height: 1.4;">
-                    {author}
-                </div>
-                <div style="flex-shrink: 0; padding-top: 2px;">
-                    <span style="background-color: {bg_color}; padding: 2px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: bold; border: 1px solid #ddd; white-space: nowrap;">
-                        {category}
-                    </span>
-                </div>
-                <div style="flex-grow: 1; font-size: 0.95rem; line-height: 1.5; padding-left: 5px;">
-                    {title_html}
+                
+                <div style="flex-grow: 1;">
+                    <div style="margin-bottom: 8px;">
+                        {title_html}
+                    </div>
+                    <div>
+                        <span style="background-color: {bg_color}; padding: 2px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; border: 1px solid #ddd; color: #444;">
+                            {category}
+                        </span>
+                    </div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
