@@ -3,6 +3,7 @@ from supabase import create_client, Client
 import pandas as pd
 from datetime import datetime
 import time
+import plotly.express as px
 
 # --- Supabase 接続 ---
 url = st.secrets["SUPABASE_URL"]
