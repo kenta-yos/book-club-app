@@ -73,16 +73,15 @@ def fetch_data():
     
 def fetch_events():
     try:
-        res = supabase.table("events").select("*, books(*)").order("event_date", ascending=False).execute()
-        # データが空、またはエラーの場合は空のDataFrameを返す
+        res = supabase.table("events").select("*, books(*)").order("event_date", desc=True).execute()
         if not res.data:
-            return pd.DataFrame()
+            return pd.DataFrame(columns=["event_date", "book_id", "books"])
+            
         return pd.DataFrame(res.data)
     except Exception as e:
-        # テーブル自体が存在しない場合などのエラー回避
         st.error(f"イベントデータ取得エラー: {e}")
-        return pd.DataFrame()
-        
+        return pd.DataFrame(columns=["event_date", "book_id", "books"])
+
 def save_and_refresh(table, data, message="完了"):
     with st.spinner("更新中..."):
         try:
@@ -141,19 +140,27 @@ with c_head_upd:
         st.rerun()
 
 # ② 次回の読書会（TOPインフォメーション）
-future_events = df_events[df_events["event_date"] >= datetime.now().strftime("%Y-%m-%d")]
-
-if not future_events.empty:
-    next_ev = future_events.sort_values("event_date").iloc[0]
-    b_info = next_ev.get("books", {})
-    with st.container(border=True):
-        st.markdown(f"📅 **次回の開催: {next_ev['event_date']}**")
-        st.markdown(f"📖 **課題本: {b_info.get('title', '未定')}**")
-else:
-    # ✨ 予定がない時の表示を追加
-    with st.container(border=True):
-        st.info("次回の開催は未定です😢")
+# カラムが存在するかチェックしてから処理
+if "event_date" in df_events.columns and not df_events.empty:
+    today = datetime.now().strftime("%Y-%m-%d")
+    future_events = df_events[df_events["event_date"] >= today]
     
+    if not future_events.empty:
+        # 未来のイベントがある場合
+        next_ev = future_events.sort_values("event_date").iloc[0]
+        b_info = next_ev.get("books") if next_ev.get("books") else {}
+        with st.container(border=True):
+            st.markdown(f"📅 **次回の開催: {next_ev['event_date']}**")
+            st.markdown(f"📖 **課題本: {b_info.get('title', '未定')}**")
+    else:
+        # 未来のイベントがない場合
+        with st.container(border=True):
+            st.info("📅 次回の開催は未定です。")
+else:
+    # テーブルが完全に空、またはエラーの場合
+    with st.container(border=True):
+        st.info("📅 次回の開催は未定です。")
+
 # --- タブの作成 ---
 tab1, tab2, tab3, tab4 = st.tabs(["📖 Books", "🗳️ Votes", "📜 History", "⚙️ Admin"])
 
