@@ -155,7 +155,7 @@ if st.session_state.page == "list":
 
 # --- 7. PAGE 2: RANKING & VOTE ---
 else:
-    # 💡 手動更新ボタンをヘッダー横に配置
+    # 💡 手動更新ボタンとヘッダー
     col_rank, col_refresh = st.columns([0.7, 0.3])
     with col_rank: st.header("🏆 Ranking")
     with col_refresh:
@@ -175,27 +175,34 @@ else:
         for _, n in nominated_rows.iterrows():
             b_id = n["book_id"]
             b_votes = vote_only[vote_only["book_id"] == b_id]
-            # 投票内訳の作成
-            details = ", ".join([f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()])
-            summary.append({"title": n["書籍タイトル"], "score": int(b_votes["points"].sum()), "details": details if details else "-"})
-        
-        # 💡 ここで点数順にソート（自動で順位が入れ替わります）
-        summary = sorted(summary, key=lambda x: x['score'], reverse=True)
-
-        # 💡 スマホ最適化：表形式をやめて st.columns で並べる
-        h1, h2, h3 = st.columns([1.2, 0.4, 1.4])
-        with h1: st.caption("タイトル")
-        with h2: st.caption("点数")
-        with h3: st.caption("投票内訳")
-        st.markdown('<hr style="margin: 0.5rem 0;">', unsafe_allow_html=True)
-
-        for item in summary:
-            c1, c2, c3 = st.columns([1.2, 0.4, 1.4])
-            with c1: st.markdown(f"**{item['title']}**") # タイトル（自動改行）
-            with c2: st.markdown(f"### {item['score']}") # 点数
-            with c3: st.caption(item['details'])        # 内訳
-            st.markdown('<div style="border-bottom: 1px solid #eee; margin: 5px 0;"></div>', unsafe_allow_html=True)
             
+            # 投票内訳：アイコンと名前と点数
+            details = ", ".join([
+                f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" 
+                for _, v in b_votes.iterrows()
+            ])
+            
+            summary.append({
+                "タイトル": n["書籍タイトル"],
+                "点数": int(b_votes["points"].sum()),
+                "内訳": details if details else "-"
+            })
+        
+        # DataFrame化して点数順にソート
+        ranking_df = pd.DataFrame(summary).sort_values("点数", ascending=False)
+
+        # 💡 ここが表形式のスマホ最適化設定
+        st.dataframe(
+            ranking_df,
+            hide_index=True,         # 左端の番号を消す
+            use_container_width=True,  # 横幅いっぱい広げる
+            column_config={
+                "タイトル": st.column_config.TextColumn("タイトル", width="medium"),
+                "点数": st.column_config.NumberColumn("点数", width="small"),
+                "内訳": st.column_config.TextColumn("内訳（誰が何点？）", width="large"),
+            }
+        )            
+        
         st.divider()
         st.subheader("🗳️ 投票")
         
