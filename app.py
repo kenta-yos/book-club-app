@@ -36,19 +36,24 @@ def fetch_data():
     res_b = supabase.table("books").select("*").execute()
     df_b = pd.DataFrame(res_b.data)
     
-    # votes と books を JOIN して取得
-    res_v = supabase.table("votes").select("*, books(title)").execute()
+    # 💡 title だけでなく author も取得するように修正
+    res_v = supabase.table("votes").select("*, books(title, author)").execute()
     processed_v = []
     for v in res_v.data:
         row = v.copy()
-        row["書籍タイトル"] = v["books"]["title"] if v.get("books") else "削除された本"
+        if v.get("books"):
+            row["書籍タイトル"] = v["books"]["title"]
+            row["著者名"] = v["books"]["author"]
+        else:
+            row["書籍タイトル"] = "削除された本"
+            row["著者名"] = ""
         processed_v.append(row)
-    df_v = pd.DataFrame(processed_v)
     
+    df_v = pd.DataFrame(processed_v)
     if df_v.empty:
-        df_v = pd.DataFrame(columns=["id", "created_at", "action", "book_id", "user_name", "points", "書籍タイトル"])
+        df_v = pd.DataFrame(columns=["id", "created_at", "action", "book_id", "user_name", "points", "書籍タイトル", "著者名"])
     return df_b, df_v
-
+    
 def save_and_refresh(table, data, message="完了"):
     with st.spinner("更新中..."):
         try:
@@ -204,8 +209,10 @@ else:
             vc1, vc_url, vc2, vc3 = st.columns([3, 0.8, 0.7, 0.7])
             
             with vc1:
-                # 💡 ここが重要：n["書籍タイトル"] を明示的に表示
-                st.markdown(f"<div class='title-text'>{n['書籍タイトル']}</div>", unsafe_allow_html=True)
+                st.markdown(f"""
+                    <div class='title-text'>{n['書籍タイトル']}</div>
+                    <div style='color: #707070; font-size: 0.8rem;'>{n['著者名']}</div>
+                """, unsafe_allow_html=True)
             
             with vc_url:
                 if pd.notnull(b_url) and str(b_url).startswith("http"):
