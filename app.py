@@ -36,22 +36,20 @@ def fetch_data():
     res_b = supabase.table("books").select("*").execute()
     df_b = pd.DataFrame(res_b.data)
     
-    # 💡 title だけでなく author も取得するように修正
-    res_v = supabase.table("votes").select("*, books(title, author)").execute()
-    processed_v = []
-    for v in res_v.data:
-        row = v.copy()
-        if v.get("books"):
-            row["書籍タイトル"] = v["books"]["title"]
-            row["著者名"] = v["books"]["author"]
-        else:
-            row["書籍タイトル"] = "削除された本"
-            row["著者名"] = ""
-        processed_v.append(row)
+    res_v = supabase.table("votes").select("*").execute()
+    df_v_raw = pd.DataFrame(res_v.data)
     
-    df_v = pd.DataFrame(processed_v)
-    if df_v.empty:
+    if df_v_raw.empty:
         df_v = pd.DataFrame(columns=["id", "created_at", "action", "book_id", "user_name", "points", "書籍タイトル", "著者名"])
+    else:
+        df_b_subset = df_b[["id", "title", "author"]].rename(
+            columns={"id": "book_id", "title": "書籍タイトル", "author": "著者名"}
+        )
+        df_v_raw["book_id"] = df_v_raw["book_id"].astype(str)
+        df_b_subset["book_id"] = df_b_subset["book_id"].astype(str)
+        
+        df_v = pd.merge(df_v_raw, df_b_subset, on="book_id", how="left")
+        
     return df_b, df_v
     
 def save_and_refresh(table, data, message="完了"):
