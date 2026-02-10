@@ -43,6 +43,14 @@ def fetch_users():
     res = supabase.table("users").select("user_name, icon").execute()
     return pd.DataFrame(res.data)
 
+def fetch_categories():
+    # categoriesテーブルから名前を取得。なければ固定リストを返します
+    try:
+        res = supabase.table("categories").select("name").order("id").execute()
+        return [item["name"] for item in res.data]
+    except:
+        return ["カテゴリエラー"] # 失敗時のバックアップ
+
 def fetch_data():
     res_b = supabase.table("books").select("*").execute()
     df_b = pd.DataFrame(res_b.data)
@@ -140,6 +148,38 @@ st.divider()
 # --- PAGE 1: BOOK LIST ---
 if st.session_state.page == "list":
     st.header("📖 Book List")
+
+    # --- 🆕 本の登録フォーム ---
+    with st.expander("➕ 新しい本を登録する"):
+        cat_list = fetch_categories() # マスタから取得
+        with st.form("add_book_form", clear_on_submit=True):
+            new_title = st.text_input("* 書籍タイトル")
+            new_author = st.text_input("著者名")
+            new_cat = st.radio("カテゴリーを選択", cat_list, horizontal=True)
+            new_url = st.text_input("詳細URL（出版社URLなど）")
+            submit_book = st.form_submit_button("本を登録する", use_container_width=True, type="primary")
+            
+            if submit_book:
+                if new_title:
+                    book_data = {
+                        "title": new_title,
+                        "author": new_author,
+                        "category": new_cat,
+                        "url": new_url,
+                        "created_by": st.session_state.USER  # ログインユーザーを記録
+                    }
+                    try:
+                        supabase.table("books").insert(book_data).execute()
+                        st.success(f"「{new_title}」を登録しました！")
+                        st.cache_data.clear()
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"登録エラー: {e}")
+                else:
+                    st.warning("タイトルは必ず入力してください。")
+
+    st.divider()
     
     # 自分がすでに選出しているかチェック
     my_selection = df_votes[(df_votes["user_name"] == st.session_state.USER) & (df_votes["action"] == "選出")]
