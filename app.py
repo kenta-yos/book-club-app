@@ -213,7 +213,20 @@ with tab1:
                 else:
                     st.warning("タイトルは必ず入力してください。")
     
-    # 自分がすでに選出しているかチェック
+    # --- 2. 🆕 カテゴリ絞り込みリスト ---
+    # 全カテゴリのリストを取得し、先頭に「すべて」を追加
+    unique_cats = sorted(df_display_books["category"].dropna().unique().tolist())
+    filter_options = ["すべて"] + unique_cats
+    
+    selected_cat = st.pills("カテゴリで絞り込み", filter_options, default="すべて")
+
+    # フィルタリング処理
+    if selected_cat == "すべて":
+        df_filtered = df_display_books
+    else:
+        df_filtered = df_display_books[df_display_books["category"] == selected_cat]
+
+    # --- 3. 選出状況チェック ---
     my_selection = df_votes[(df_votes["user_name"] == st.session_state.USER) & (df_votes["action"] == "選出")]
     nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
 
@@ -349,8 +362,6 @@ with tab2:
 
 # --- Tab 3: History (これまでの読書会) ---
 with tab3:
-    st.subheader("📖 開催履歴")
-
     try:
         response = supabase.table("events").select("*, books(*)").execute()
         all_events = pd.DataFrame(response.data)
@@ -413,7 +424,7 @@ with tab3:
                 
     # --- 究極の棒グラフ (Altair版：数字を外側に表示) ---
     st.divider()
-    st.subheader("📊 カテゴリ別・読破数ランキング")
+    st.subheader("📊 カテゴリランキング")
     
     if not past_events.empty:
         # 1. データ集計
