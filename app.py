@@ -386,14 +386,7 @@ with tab4:
         st.warning("現在選出されている本がありません。未実施の全リストから検索します。")
         base_list = df_display_books
 
-    # 3. 検索フィルタ（base_listに対してタイトルで絞り込み）
-    search_query = st.text_input("🔍 タイトルで絞り込む", placeholder="入力すると下のセレクトボックスが更新されます...")
-    if search_query:
-        final_list = base_list[base_list["title"].str.contains(search_query, case=False, na=False)]
-    else:
-        final_list = base_list
-
-    # 4. 登録フォーム
+    # 3. 登録フォーム
     with st.form("admin_form"):
         st.write("次回の開催情報を登録")
         next_date = st.date_input("読書会の日程")
