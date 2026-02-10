@@ -366,42 +366,42 @@ with tab3:
 
     if not past_events.empty:
         past_events = past_events.sort_values("event_date", ascending=False)
-            
+        
         for _, row in past_events.iterrows():
             book = row.get("books", {})
             if not book: continue
 
-            date_str = row["event_date"].replace("-", "/")
+            date_str = str(row["event_date"]).replace("-", "/")
             title = book.get("title", "不明")
             author = book.get("author", "不明")
             category = book.get("category", "その他")
-            target_url = book.get("url")
+            target_url = book.get("url", "")
 
+            # カテゴリ色
             cat_colors = {
                 "技術書": "#E3F2FD", "ビジネス": "#F1F8E9", 
                 "小説": "#FFFDE7", "哲学": "#F3E5F5", "デザイン": "#FCE4EC"
             }
             bg_color = cat_colors.get(category, "#F5F5F5")
 
+            # HTML組み立て（f-string内でダブルクォーテーションがぶつからないようシングルクォーテーションを使用）
             if target_url:
-                title_html = f'<a href="{target_url}" target="_blank" style="text-decoration: none; color: #1E88E5; font-weight: 600; font-size: 1rem; line-height: 1.4;">{title}</a>'
+                title_html = f"<a href='{target_url}' target='_blank' style='text-decoration: none; color: #1E88E5; font-weight: 600; font-size: 1rem;'>{title}</a>"
             else:
-                title_html = f'<span style="color: #333; font-weight: 600; font-size: 1rem; line-height: 1.4;">{title}</span>'
+                title_html = f"<span style='color: #333; font-weight: 600; font-size: 1rem;'>{title}</span>"
 
-            # HTMLレイアウト
             st.markdown(f"""
-            <div style="display: flex; align-items: flex-start; padding: 15px 0; border-bottom: 1px solid #eee; gap: 15px;">
-                <div style="width: 100px; flex-shrink: 0;">
-                    <div style="color: #888; font-size: 0.8rem; margin-bottom: 4px;">{date_str}</div>
-                    <div style="color: #555; font-size: 0.85rem; line-height: 1.2; word-break: break-all;">{author}</div>
+            <div style='display: flex; align-items: flex-start; padding: 15px 0; border-bottom: 1px solid #eee; gap: 15px;'>
+                <div style='width: 100px; flex-shrink: 0;'>
+                    <div style='color: #888; font-size: 0.8rem; margin-bottom: 4px;'>{date_str}</div>
+                    <div style='color: #555; font-size: 0.85rem; line-height: 1.2; word-break: break-all;'>{author}</div>
                 </div>
-                
-                <div style="flex-grow: 1;">
-                    <div style="margin-bottom: 8px;">
+                <div style='flex-grow: 1;'>
+                    <div style='margin-bottom: 8px; line-height: 1.4;'>
                         {title_html}
                     </div>
                     <div>
-                        <span style="background-color: {bg_color}; padding: 2px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; border: 1px solid #ddd; color: #444;">
+                        <span style='background-color: {bg_color}; padding: 2px 10px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; border: 1px solid #ddd; color: #444;'>
                             {category}
                         </span>
                     </div>
@@ -410,7 +410,7 @@ with tab3:
             """, unsafe_allow_html=True)
     else:
         st.info("過去の開催履歴はありません。")
-            
+                
         # --- 究極の棒グラフ (Altair版：数字を外側に表示) ---
         st.divider()
         st.subheader("📊 カテゴリ別・読破数ランキング")
