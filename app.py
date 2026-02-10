@@ -469,11 +469,34 @@ with tab3:
                 
 # --- Tab 4: Admin (管理者画面) ---
 with tab4:
-    # 1. 現在「選出」されている本の情報を取得
+    # 1. 継続登録セクション (前回のイベントがある場合のみ表示)
+    if not df_events.empty:
+        # 最新のイベントを1件取得
+        last_event = df_events.sort_values("event_date", ascending=False).iloc[0]
+        last_book = last_event.get("books", {})
+        
+        st.subheader("🔁 前回の本を継続する")
+        with st.container(border=True):
+            st.markdown(f"前回の本: **{last_book.get('title', '不明')}**")
+            cont_date = st.date_input("継続開催の日付", key="cont_date")
+            
+            if st.button("この本で次回の予告を作る（継続）", use_container_width=True, type="secondary"):
+                new_event = {
+                    "event_date": str(cont_date),
+                    "book_id": str(last_event["book_id"])
+                }
+                supabase.table("events").insert(new_event).execute()
+                st.success(f"「{last_book.get('title')}」の継続開催を登録しました！")
+                st.cache_data.clear()
+                time.sleep(1)
+                st.rerun()
+        st.divider()
+
+    # 2. 新規選出セクション (既存のコード)
+    st.subheader("🆕 新しい本を確定する")
     nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
     nominated_books = df_books[df_books["id"].astype(str).isin([str(x) for x in nominated_ids])]
 
-    # 2. リストの決定（選出中の本を優先、なければ全リスト）
     if not nominated_books.empty:
         st.info("🗳️ 現在メンバーが選出中の本が表示されています")
         final_list = nominated_books
@@ -481,14 +504,11 @@ with tab4:
         st.warning("現在選出されている本がありません。全リストから表示します。")
         final_list = df_display_books
 
-    # 3. 登録フォーム
     with st.form("admin_form"):
         st.write("次回の開催情報を登録")
         next_date = st.date_input("読書会の日程")
         
-        # 選択肢の作成
         if not final_list.empty:
-            # カテゴリとタイトルで選択肢を作成
             book_options = {f"[{row['category']}] {row['title']}": row['id'] for _, row in final_list.iterrows()}
             target_label = st.selectbox("課題本を確定", options=list(book_options.keys()))
             target_book_id = book_options[target_label]
@@ -496,7 +516,7 @@ with tab4:
             st.error("選択可能な本がありません。")
             target_book_id = None
         
-        if st.form_submit_button("次回予告を確定する", type="primary"):
+        if st.form_submit_button("次回予告を確定する", type="primary", use_container_width=True):
             if target_book_id:
                 new_event = {
                     "event_date": str(next_date),
@@ -508,22 +528,21 @@ with tab4:
                 time.sleep(1)
                 st.rerun()
 
-    st.divider()    
-    # 危険な操作なので、確認のチェックボックスを入れると親切です
+    # 3. 🧹 投票リセットセクション (前に追加したもの)
+    st.divider()
+    st.subheader("🧹 データの管理")
     confirm_reset = st.checkbox("全ユーザーの投票リセットを実行する")
-    
     if st.button("全ユーザーの投票を完全にリセット", type="primary", use_container_width=True, disabled=not confirm_reset):
         try:
-            # actionが「投票」のものだけを一括削除（「選出」は残る）
             supabase.table("votes").delete().eq("action", "投票").execute()
-            
             st.cache_data.clear()
             st.success("全ての投票データをリセットしました。")
             time.sleep(1)
             st.rerun()
         except Exception as e:
             st.error(f"リセットエラー: {e}")
-    
+
+    # Logout
     st.divider()
     if st.button("Logout", use_container_width=True):
         st.session_state.USER = None
