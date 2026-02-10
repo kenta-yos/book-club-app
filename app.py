@@ -238,17 +238,16 @@ else:
             
             vc1, vc_url, vc2, vc3 = st.columns([3, 1, 1, 1])
             with vc1:
-                # 💡 タイトルとラベルを同じ div 内に入れ、flex-wrap で横並びに
                 st.markdown(f"""
-                    <div style='display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 2px;'>
-                        <strong style='font-size: 1.1rem; line-height: 1.2;'>{n['書籍タイトル']}</strong>
-                        <span style='background: #fdfdfd; border: 1px solid #eee; border-radius: 4px; padding: 1px 6px; font-size: 0.7rem; color: #666; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap;'>
-                            <small style='color: #aaa;'>推薦:</small> {n_icon} {n_user}
+                    <div style='line-height: 1.6;'>
+                        <strong style='font-size: 1.1rem; margin-right: 8px;'>{n['書籍タイトル']}</strong>
+                        <span style='background: #e1f5fe; border: 1px solid #b3e5fc; border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; color: #01579b; display: inline-block; vertical-align: middle; white-space: nowrap; font-weight: bold;'>
+                            <span style='font-size: 0.65rem; opacity: 0.7;'>推薦:</span> {n_icon} {n_user}
                         </span>
                     </div>
-                    <div style='color: gray; font-size: 0.8rem;'>{n['著者名']}</div>
+                    <div style='color: gray; font-size: 0.8rem; margin-top: 4px; margin-left: 2px;'>{n['著者名']}</div>
                 """, unsafe_allow_html=True)
-    
+                
             with vc_url:
                 if pd.notnull(b_url) and str(b_url).startswith("http"):
                     st.link_button("詳細", b_url, use_container_width=True)
