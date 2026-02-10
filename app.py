@@ -154,9 +154,10 @@ if st.session_state.page == "list":
         st.success("✅ 1冊選出済みです。")
         if st.button("選出をキャンセルして選び直す"):
             target_id = str(my_selection.iloc[0]["book_id"])
-            supabase.table("votes").delete().eq("book_id", target_id).execute()
+            supabase.table("votes").delete().eq("book_id", target_id).eq("user_name", st.session_state.USER).eq("action", "選出").execute()
+            st.cache_data.clear()
             st.rerun()
-
+    
     for cat in df_books["category"].dropna().unique():
         st.subheader(f"📂 {cat}")
         for _, row in df_books[df_books["category"] == cat].iterrows():
