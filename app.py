@@ -223,6 +223,9 @@ with tab1:
         st.markdown(f"### 📂 {cat}")
         for _, row in df_display_books[df_display_books["category"] == cat].iterrows():
             
+            b_id = str(row["id"])
+            is_nominated = b_id in nominated_ids
+            
             # --- カード型のデザインコンテナ ---
             with st.container(border=True):
                 # 1. タイトルと著者名
