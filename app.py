@@ -411,54 +411,54 @@ with tab3:
     else:
         st.info("過去の開催履歴はありません。")
                 
-        # --- 究極の棒グラフ (Altair版：数字を外側に表示) ---
-        st.divider()
-        st.subheader("📊 カテゴリ別・読破数ランキング")
-        
-        if not past_events.empty:
-            # 1. データ集計
-            cat_list = [str(e.get("books", {}).get("category")) for e in past_events.to_dict('records') if e.get("books")]
-            cat_list = [c for c in cat_list if c != 'None' and c != '']
+    # --- 究極の棒グラフ (Altair版：数字を外側に表示) ---
+    st.divider()
+    st.subheader("📊 カテゴリ別・読破数ランキング")
+    
+    if not past_events.empty:
+        # 1. データ集計
+        cat_list = [str(e.get("books", {}).get("category")) for e in past_events.to_dict('records') if e.get("books")]
+        cat_list = [c for c in cat_list if c != 'None' and c != '']
 
-            if cat_list:
-                df_counts = pd.Series(cat_list).value_counts().reset_index()
-                df_counts.columns = ["カテゴリ", "冊数"]
+        if cat_list:
+            df_counts = pd.Series(cat_list).value_counts().reset_index()
+            df_counts.columns = ["カテゴリ", "冊数"]
 
-                # 2. Altairでグラフを作成
-                import altair as alt
+            # 2. Altairでグラフを作成
+            import altair as alt
 
-                # 棒の部分
-                bars = alt.Chart(df_counts).mark_bar(
-                    cornerRadiusTopRight=5,
-                    cornerRadiusBottomRight=5
-                ).encode(
-                    x=alt.X("冊数:Q", title=None, axis=None), # 冊数の軸を消してスッキリ
-                    y=alt.Y("カテゴリ:N", title=None, sort='-x'), # 多い順に並べる
-                    color=alt.Color("カテゴリ:N", legend=None, scale=alt.Scale(scheme='viridis')) # お洒落な配色
-                )
+            # 棒の部分
+            bars = alt.Chart(df_counts).mark_bar(
+                cornerRadiusTopRight=5,
+                cornerRadiusBottomRight=5
+            ).encode(
+                x=alt.X("冊数:Q", title=None, axis=None), # 冊数の軸を消してスッキリ
+                y=alt.Y("カテゴリ:N", title=None, sort='-x'), # 多い順に並べる
+                color=alt.Color("カテゴリ:N", legend=None, scale=alt.Scale(scheme='viridis')) # お洒落な配色
+            )
 
-                # 数字（ラベル）の部分
-                text = bars.mark_text(
-                    align='left',
-                    baseline='middle',
-                    dx=5,  # 棒の端から5ピクセル外側にずらす
-                    fontSize=14,
-                    fontWeight='bold'
-                ).encode(
-                    text='冊数:Q'
-                )
+            # 数字（ラベル）の部分
+            text = bars.mark_text(
+                align='left',
+                baseline='middle',
+                dx=5,  # 棒の端から5ピクセル外側にずらす
+                fontSize=14,
+                fontWeight='bold'
+            ).encode(
+                text='冊数:Q'
+            )
 
-                # 棒と数字を重ねる
-                chart = (bars + text).properties(
-                    height=alt.Step(40)  # 棒の太さを調整
-                ).configure_view(
-                    strokeOpacity=0      # 外枠を消す
-                )
+            # 棒と数字を重ねる
+            chart = (bars + text).properties(
+                height=alt.Step(40)  # 棒の太さを調整
+            ).configure_view(
+                strokeOpacity=0      # 外枠を消す
+            )
 
-                # 表示
-                st.altair_chart(chart, use_container_width=True)
-            else:
-                st.info("集計できるカテゴリデータがありません。")
+            # 表示
+            st.altair_chart(chart, use_container_width=True)
+        else:
+            st.info("集計できるカテゴリデータがありません。")
                 
 # --- Tab 4: Admin (管理者画面) ---
 with tab4:
