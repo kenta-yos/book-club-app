@@ -72,9 +72,17 @@ def fetch_data():
     return df_b, df_v
     
 def fetch_events():
-    res = supabase.table("events").select("*, books(*)").order("event_date", ascending=False).execute()
-    return pd.DataFrame(res.data)
-
+    try:
+        res = supabase.table("events").select("*, books(*)").order("event_date", ascending=False).execute()
+        # データが空、またはエラーの場合は空のDataFrameを返す
+        if not res.data:
+            return pd.DataFrame()
+        return pd.DataFrame(res.data)
+    except Exception as e:
+        # テーブル自体が存在しない場合などのエラー回避
+        st.error(f"イベントデータ取得エラー: {e}")
+        return pd.DataFrame()
+        
 def save_and_refresh(table, data, message="完了"):
     with st.spinner("更新中..."):
         try:
