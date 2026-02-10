@@ -139,7 +139,7 @@ st.divider()
 
 # --- PAGE 1: BOOK LIST ---
 if st.session_state.page == "list":
-    st.header("Book List")
+    st.header("📖 Book List")
     
     # 自分がすでに選出しているかチェック
     my_selection = df_votes[(df_votes["user_name"] == st.session_state.USER) & (df_votes["action"] == "選出")]
@@ -147,29 +147,46 @@ if st.session_state.page == "list":
 
     if not my_selection.empty:
         st.success("✅ 1冊選出済みです。")
-        if st.button("選出をキャンセルして選び直す"):
+        if st.button("選出をキャンセルして選び直す", use_container_width=True):
             target_id = str(my_selection.iloc[0]["book_id"])
             supabase.table("votes").delete().eq("book_id", target_id).eq("user_name", st.session_state.USER).eq("action", "選出").execute()
             st.cache_data.clear()
             st.rerun()
-    
+
     for cat in df_books["category"].dropna().unique():
-        st.subheader(f"📂 {cat}")
+        st.markdown(f"### 📂 {cat}")
         for _, row in df_books[df_books["category"] == cat].iterrows():
             b_id = str(row["id"])
             is_nominated = b_id in nominated_ids
             
-            c1, c2, c3 = st.columns([4, 1, 1])
-            with c1:
-                st.markdown(f"**{row['title']}** \n<small>{row['author']}</small>", unsafe_allow_html=True)
-            with c2:
-                if row["url"]: st.link_button("詳細", row["url"], use_container_width=True)
-            with c3:
-                disabled = is_nominated or not my_selection.empty
-                label = "選出済" if is_nominated else "選ぶ"
-                if st.button(label, key=f"sel_{b_id}", disabled=disabled, use_container_width=True):
-                    save_and_refresh("votes", {"action": "選出", "book_id": b_id})
-
+            # --- カード型のデザインコンテナ ---
+            with st.container(border=True):
+                # 1. タイトルと著者名
+                st.markdown(f"""
+                    <div style='line-height: 1.4; margin-bottom: 10px;'>
+                        <div style='font-size: 1.1rem; font-weight: bold; color: #333;'>{row['title']}</div>
+                        <div style='color: #666; font-size: 0.85rem;'>{row['author']}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+                # 2. ボタン配置
+                col_b1, col_b2 = st.columns([1, 1])
+                with col_b1:
+                    if row["url"]: 
+                        st.link_button("🔗 詳細", row["url"], use_container_width=True)
+                    else:
+                        st.button("詳細なし", disabled=True, use_container_width=True, key=f"no_url_{b_id}")
+                
+                with col_b2:
+                    disabled = is_nominated or not my_selection.empty
+                    # すでに誰かが選んでいる場合は「選出済」
+                    if is_nominated:
+                        st.button("選出済", disabled=True, use_container_width=True, key=f"nom_{b_id}")
+                    else:
+                        # 💡 type="primary" で赤（オレンジ）系の目立つボタンになります
+                        if st.button("これを選ぶ", key=f"sel_{b_id}", disabled=disabled, use_container_width=True, type="primary"):
+                            save_and_refresh("votes", {"action": "選出", "book_id": b_id})
+                            
 # --- 7. PAGE 2: RANKING & VOTE ---
 else:
     st.header("🏆 Ranking")
@@ -249,112 +266,3 @@ else:
 
 # 最後に空白
 st.markdown("<div style='margin-bottom: 150px;'></div>", unsafe_allow_html=True)
-
-# # --- 7. PAGE 2: RANKING & VOTE ---
-# else:
-#     # 💡 手動更新ボタンとヘッダー
-#     col_rank, col_refresh = st.columns([0.7, 0.3])
-#     with col_rank: st.header("🏆 Ranking")
-
-#     nominated_rows = df_votes[df_votes["action"] == "選出"]
-    
-#     if nominated_rows.empty:
-#         st.info("まだ候補が選ばれていません。")
-#     else:
-#         vote_only = df_votes[df_votes["action"] == "投票"]
-#         user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
-#         summary = []
-
-#         for _, n in nominated_rows.iterrows():
-#             b_id = n["book_id"]
-#             b_votes = vote_only[vote_only["book_id"] == b_id]
-            
-#             # 投票内訳：アイコンと名前と点数
-#             details = ", ".join([
-#                 f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" 
-#                 for _, v in b_votes.iterrows()
-#             ])
-            
-#             summary.append({
-#                 "タイトル": n["書籍タイトル"],
-#                 "点数": int(b_votes["points"].sum()),
-#                 "内訳": details if details else "-"
-#             })
-        
-#         # DataFrame化して点数順にソート
-#         ranking_df = pd.DataFrame(summary).sort_values("点数", ascending=False)
-
-#         # 💡 ここが表形式のスマホ最適化設定
-#         st.dataframe(
-#             ranking_df,
-#             hide_index=True,         # 左端の番号を消す
-#             use_container_width=True,  # 横幅いっぱい広げる
-#             column_config={
-#                 "タイトル": st.column_config.TextColumn("タイトル", width="medium"),
-#                 "点数": st.column_config.NumberColumn("点数", width="small"),
-#                 "内訳": st.column_config.TextColumn("内訳（誰が何点？）", width="large"),
-#             }
-#         )            
-        
-#         st.divider()
-#         st.subheader("🗳️ 投票")
-        
-#         my_votes = vote_only[vote_only["user_name"] == st.session_state.USER]
-#         v_points = my_votes["points"].tolist()
-
-#         # URL参照用の辞書作成 (詳細ボタン用)
-#         url_map = dict(zip(df_books['id'].astype(str), df_books['url']))
-
-#         for _, n in nominated_rows.iterrows():
-#             b_id = str(n["book_id"])
-#             current_p = int(my_votes[my_votes["book_id"] == b_id]["points"].sum())
-#             b_url = url_map.get(b_id)
-#             n_user = n["user_name"]
-#             n_icon = user_icon_map.get(n_user, "👤")
-#             is_my_nomination = (n_user == st.session_state.USER)
-            
-#             # --- 1段目：タイトルと推薦者 ---
-#             st.markdown(f"""
-#                 <div style='line-height: 1.6;'>
-#                     <strong style='font-size: 1.1rem; margin-right: 8px;'>{n['書籍タイトル']}</strong>
-#                     <span style='background: #e1f5fe; border: 1px solid #b3e5fc; border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; color: #01579b; display: inline-block; vertical-align: middle; white-space: nowrap; font-weight: bold;'>
-#                         <span style='font-size: 0.65rem; opacity: 0.7;'>推薦:</span> {n_icon} {n_user}
-#                     </span>
-#                 </div>
-#                 <div style='color: gray; font-size: 0.8rem; margin-top: 4px; margin-bottom: 8px; margin-left: 2px;'>{n['著者名']}</div>
-#             """, unsafe_allow_html=True)
-
-#             # --- 2段目：ボタン3列（絶対に横並びを死守） ---
-#             with st.container(horizontal=True):
-#                 v_col1, v_col2, v_col3 = st.columns(3) # 均等に3分割
-                
-#                 with v_col1:
-#                     if pd.notnull(b_url) and str(b_url).startswith("http"):
-#                         st.link_button("詳細", b_url, use_container_width=True)
-#                     else:
-#                         st.button("詳細なし", disabled=True, use_container_width=True, key=f"nodetail_{b_id}")
-                
-#                 with v_col2:
-#                     d1 = is_my_nomination or (1 in v_points) or (current_p > 0)
-#                     if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True):
-#                         save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 1})
-                
-#                 with v_col3:
-#                     d2 = is_my_nomination or (2 in v_points) or (current_p > 0)
-#                     if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True):
-#                         save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2})
-
-#         st.divider()
-#         st.subheader(f"🗳️ {st.session_state.U_ICON} {st.session_state.USER} さんの投票")
-        
-#         if st.button("自分の投票をすべてリセット", type="secondary"):
-#             with st.spinner("リセット中..."):
-#                 supabase.table("votes")\
-#                     .delete()\
-#                     .eq("user_name", st.session_state.USER)\
-#                     .eq("action", "投票")\
-#                     .execute()
-#                 st.cache_data.clear()
-#                 st.rerun()
-                
-# st.markdown("<div style='margin-bottom: 300px;'></div>", unsafe_allow_html=True)
