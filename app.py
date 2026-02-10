@@ -15,6 +15,11 @@ st.set_page_config(page_title="Book Club", layout="wide")
 # スタイル調整
 st.markdown("""
     <style>
+    /* ページ全体の最下部に余白を追加 */
+    .main .block-container {
+        padding-bottom: 5rem !important;
+    }
+    
     /* ① ヘッダー（上部のバーとメニューボタン）を消す */
     header {visibility: hidden;}
     
