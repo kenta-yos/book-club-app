@@ -229,43 +229,43 @@ else:
             b_id = str(n["book_id"])
             current_p = int(my_votes[my_votes["book_id"] == b_id]["points"].sum())
             b_url = url_map.get(b_id)
-            
-            # 💡 推薦者の名前とアイコンを取得
             n_user = n["user_name"]
             n_icon = user_icon_map.get(n_user, "👤")
-            
-            # 💡 自分が推薦した本かどうか判定
             is_my_nomination = (n_user == st.session_state.USER)
             
-            vc1, vc_url, vc2, vc3 = st.columns([3, 1, 1, 1])
-            with vc1:
-                st.markdown(f"""
-                    <div style='line-height: 1.6;'>
-                        <strong style='font-size: 1.1rem; margin-right: 8px;'>{n['書籍タイトル']}</strong>
-                        <span style='background: #e1f5fe; border: 1px solid #b3e5fc; border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; color: #01579b; display: inline-block; vertical-align: middle; white-space: nowrap; font-weight: bold;'>
-                            <span style='font-size: 0.65rem; opacity: 0.7;'>推薦:</span> {n_icon} {n_user}
-                        </span>
-                    </div>
-                    <div style='color: gray; font-size: 0.8rem; margin-top: 4px; margin-left: 2px;'>{n['著者名']}</div>
-                """, unsafe_allow_html=True)
-                
-            with vc_url:
+            # --- 1段目：タイトルと推薦者 ---
+            st.markdown(f"""
+                <div style='line-height: 1.6;'>
+                    <strong style='font-size: 1.1rem; margin-right: 8px;'>{n['書籍タイトル']}</strong>
+                    <span style='background: #e1f5fe; border: 1px solid #b3e5fc; border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; color: #01579b; display: inline-block; vertical-align: middle; white-space: nowrap; font-weight: bold;'>
+                        <span style='font-size: 0.65rem; opacity: 0.7;'>推薦:</span> {n_icon} {n_user}
+                    </span>
+                </div>
+                <div style='color: gray; font-size: 0.8rem; margin-top: 4px; margin-bottom: 8px; margin-left: 2px;'>{n['著者名']}</div>
+            """, unsafe_allow_html=True)
+
+            # --- 2段目：ボタン3列（均等） ---
+            btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 1]) # 💡 1:1:1 で均等に分割
+            
+            with btn_col1:
                 if pd.notnull(b_url) and str(b_url).startswith("http"):
                     st.link_button("詳細", b_url, use_container_width=True)
+                else:
+                    st.button("詳細なし", disabled=True, use_container_width=True)
             
-            with vc2:
-                # 💡 自分の本、または既に1点を使っている場合はグレーアウト
+            with btn_col2:
                 d1 = is_my_nomination or (1 in v_points) or (current_p > 0)
                 if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True):
                     save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 1})
-            with vc3:
-                # 💡 自分の本、または既に2点を使っている場合はグレーアウト
+            
+            with btn_col3:
                 d2 = is_my_nomination or (2 in v_points) or (current_p > 0)
                 if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True):
                     save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2})
             
-            st.markdown('<div style="border-bottom: 1px solid #f9f9f9; margin-bottom: 10px;"></div>', unsafe_allow_html=True)
-    
+            # 💡 本ごとの区切り線
+            st.markdown('<div style="border-bottom: 1px solid #f0f0f0; margin: 15px 0;"></div>', unsafe_allow_html=True)
+                
         st.divider()
         st.subheader(f"🗳️ {st.session_state.U_ICON} {st.session_state.USER} さんの投票")
         
