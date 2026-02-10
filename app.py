@@ -421,49 +421,55 @@ with tab3:
     # --- 究極の棒グラフ (Altair版：数字を外側に表示) ---
     st.divider()
     st.subheader("📊 カテゴリランキング")
-    
+
     if not past_events.empty:
-        # 1. データ集計
-        cat_list = [str(e.get("books", {}).get("category")) for e in past_events.to_dict('records') if e.get("books")]
-        cat_list = [c for c in cat_list if c != 'None' and c != '']
+        # 1. 重複を排除した「本」のリストを作成
+        # event_dateなどは無視して、book_idが同じなら1件とみなす
+        unique_books_df = past_events.drop_duplicates(subset=['book_id'])
+
+        # 2. カテゴリを抽出してカウント
+        cat_list = [
+            str(row.get("books", {}).get("category")) 
+            for row in unique_books_df.to_dict('records') 
+            if row.get("books")
+        ]
+        # 無効な値を排除
+        cat_list = [c for c in cat_list if c not in ['None', '', 'nan']]
 
         if cat_list:
             df_counts = pd.Series(cat_list).value_counts().reset_index()
             df_counts.columns = ["カテゴリ", "冊数"]
 
-            # 2. Altairでグラフを作成
+            # 3. Altairでグラフを作成 (以前と同じお洒落な設定)
             import altair as alt
 
-            # 棒の部分
             bars = alt.Chart(df_counts).mark_bar(
                 cornerRadiusTopRight=5,
                 cornerRadiusBottomRight=5
             ).encode(
-                x=alt.X("冊数:Q", title=None, axis=None), # 冊数の軸を消してスッキリ
-                y=alt.Y("カテゴリ:N", title=None, sort='-x'), # 多い順に並べる
-                color=alt.Color("カテゴリ:N", legend=None, scale=alt.Scale(scheme='viridis')) # お洒落な配色
+                x=alt.X("冊数:Q", title=None, axis=None),
+                y=alt.Y("カテゴリ:N", title=None, sort='-x'),
+                color=alt.Color("カテゴリ:N", legend=None, scale=alt.Scale(scheme='viridis'))
             )
 
-            # 数字（ラベル）の部分
             text = bars.mark_text(
                 align='left',
                 baseline='middle',
-                dx=5,  # 棒の端から5ピクセル外側にずらす
+                dx=5,
                 fontSize=14,
                 fontWeight='bold'
             ).encode(
                 text='冊数:Q'
             )
 
-            # 棒と数字を重ねる
             chart = (bars + text).properties(
-                height=alt.Step(40)  # 棒の太さを調整
+                height=alt.Step(40)
             ).configure_view(
-                strokeOpacity=0      # 外枠を消す
+                strokeOpacity=0
             )
 
-            # 表示
             st.altair_chart(chart, use_container_width=True)
+            st.caption("※ 複数月で読んだ本は1冊としてカウントしています")
         else:
             st.info("集計できるカテゴリデータがありません。")
                 
