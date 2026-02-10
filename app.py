@@ -366,17 +366,24 @@ with tab3:
         st.divider()
         st.subheader("📊 カテゴリ内訳")
         if not past_events.empty:
-            # 1. カテゴリをリスト化（Noneを除外）
-            cat_data = [e.get("books", {}).get("category") for e in past_events.to_dict('records') if e.get("books")]
-            cat_list = [c for c in cat_data if c is not None]
+            # 1. カテゴリをリスト化してカウント
+            cat_list = [e.get("books", {}).get("category") for e in past_events.to_dict('records') if e.get("books")]
+            cat_list = [c for c in cat_list if c] # Noneや空文字を除外
 
             if cat_list:
-                # 2. Seriesを作成（インデックスをカテゴリ名、値をカウントにする）
-                # Streamlitの古いバージョンでもこの形なら自動で円グラフになります
-                cat_counts = pd.Series(cat_list).value_counts()
+                # 2. 辞書を作ってから DataFrame に変換（これが最もエラーが出にくい）
+                from collections import Counter
+                counts = Counter(cat_list)
+                df_pie = pd.DataFrame({
+                    "category": list(counts.keys()),
+                    "count": list(counts.values())
+                })
                 
-                # 3. グラフ表示（引数を最小限に）
-                st.pie_chart(cat_counts)
+                # 3. インデックスにカテゴリをセット（Streamlitがラベルとして認識するため）
+                df_pie = df_pie.set_index("category")
+                
+                # 4. 表示
+                st.pie_chart(df_pie)
             else:
                 st.info("集計できるカテゴリデータがありません。")
                 
