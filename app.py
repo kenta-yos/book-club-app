@@ -366,49 +366,52 @@ with tab3:
         past_events = pd.DataFrame() # エラー時は空のDFにする
 
     if not past_events.empty:
-        # 1. データを日付順にソート（新しい順）
         past_events = past_events.sort_values("event_date", ascending=False)
         
         for _, row in past_events.iterrows():
             book = row.get("books", {})
             if not book: continue
 
-            # Supabaseから各データを取得
             date_str = row["event_date"].replace("-", "/")
             title = book.get("title", "不明")
             author = book.get("author", "不明")
             category = book.get("category", "その他")
-            target_url = book.get("url") # Supabaseに登録されているURL
+            target_url = book.get("url")
 
-            # 🎨 カテゴリのバッジ色（お好みで調整してください）
             cat_colors = {
                 "技術書": "#E3F2FD", "ビジネス": "#F1F8E9", 
                 "小説": "#FFFDE7", "哲学": "#F3E5F5", "デザイン": "#FCE4EC"
             }
             bg_color = cat_colors.get(category, "#F5F5F5")
 
-            # 🛠️ タイトルにリンクを付与（URLがある場合のみ<a>タグ、なければテキストのみ）
+            # タイトルリンク（URLがあれば<a>、なければテキスト）
             if target_url:
-                title_html = f'<a href="{target_url}" target="_blank" style="text-decoration: none; color: #1E88E5; font-weight: 600;">{title}</a>'
+                title_html = f'<a href="{target_url}" target="_blank" style="text-decoration: none; color: #1E88E5; font-weight: 600; word-break: break-all;">{title}</a>'
             else:
-                title_html = f'<span style="color: #333; font-weight: 600;">{title}</span>'
+                title_html = f'<span style="color: #333; font-weight: 600; word-break: break-all;">{title}</span>'
 
-            # 🛠️ HTML一行レイアウト
+            # HTMLレイアウト
             st.markdown(f"""
-            <div style="display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; gap: 15px; font-size: 0.9rem;">
-                <span style="color: #888; white-space: nowrap; width: 90px;">{date_str}</span>
-                <span style="color: #555; white-space: nowrap; width: 110px; overflow: hidden; text-overflow: ellipsis;">{author}</span>
-                <span style="background-color: {bg_color}; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; white-space: nowrap; border: 1px solid #ddd;">
-                    {category}
-                </span>
-                <div style="flex-grow: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <div style="display: flex; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #eee; gap: 12px;">
+                <div style="color: #888; font-size: 0.85rem; width: 85px; flex-shrink: 0; padding-top: 4px;">
+                    {date_str}
+                </div>
+                <div style="color: #555; font-size: 0.9rem; width: 100px; flex-shrink: 0; padding-top: 2px; line-height: 1.4;">
+                    {author}
+                </div>
+                <div style="flex-shrink: 0; padding-top: 2px;">
+                    <span style="background-color: {bg_color}; padding: 2px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: bold; border: 1px solid #ddd; white-space: nowrap;">
+                        {category}
+                    </span>
+                </div>
+                <div style="flex-grow: 1; font-size: 0.95rem; line-height: 1.5; padding-left: 5px;">
                     {title_html}
                 </div>
             </div>
             """, unsafe_allow_html=True)
     else:
         st.info("過去の開催履歴はありません。")
-        
+            
         # --- 究極の棒グラフ (Altair版：数字を外側に表示) ---
         st.divider()
         st.subheader("📊 カテゴリ別・読破数ランキング")
