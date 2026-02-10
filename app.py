@@ -160,17 +160,37 @@ else:
     else:
         vote_only = df_votes[df_votes["action"] == "投票"]
         summary = []
+        
+        # ユーザーテーブルからアイコンを取得するための辞書作成
+        user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
+        
         for _, n in nominated_rows.iterrows():
             b_id = n["book_id"]
             b_votes = vote_only[vote_only["book_id"] == b_id]
+            
+            # 投票内訳：アイコンと名前を表示
+            details = ", ".join([
+                f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" 
+                for _, v in b_votes.iterrows()
+            ])
+            
             summary.append({
                 "タイトル": n["書籍タイトル"],
-                "点数": b_votes["points"].sum(),
-                "推薦者": n["user_name"]
+                "合計点": int(b_votes["points"].sum()), # 小数点削除
+                "投票内訳": details if details else "-"
             })
-        st.table(pd.DataFrame(summary).sort_values("点数", ascending=False))
-
+        
+        # DataFrame作成
+        ranking_df = pd.DataFrame(summary)
+        
+        if not ranking_df.empty:
+            # 合計点で降順ソート
+            ranking_df = ranking_df.sort_values("合計点", ascending=False)
+            # インデックス（左端の番号）を非表示にして表示
+            st.dataframe(ranking_df, hide_index=True, use_container_width=True)
+            
         st.divider()
+        
         st.subheader("🗳️ 投票")
         
         my_votes = vote_only[vote_only["user_name"] == st.session_state.USER]
