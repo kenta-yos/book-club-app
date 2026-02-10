@@ -213,19 +213,20 @@ with tab1:
                 else:
                     st.warning("タイトルは必ず入力してください。")
     
-    # --- 2. 🆕 カテゴリ絞り込みリスト ---
-    # 全カテゴリのリストを取得し、先頭に「すべて」を追加
+    # --- 2. カテゴリ絞り込みリスト ---
     unique_cats = sorted(df_display_books["category"].dropna().unique().tolist())
     filter_options = ["すべて"] + unique_cats
     
-    selected_cat = st.pills("カテゴリで絞り込み", filter_options, default="すべて")
+    # st.pills が使えない環境を考慮し、より確実な st.radio にしています
+    selected_cat = st.radio("カテゴリで絞り込み", filter_options, index=0, horizontal=True)
 
-    # フィルタリング処理
+    # 3. フィルタリング（ここが重要！）
     if selected_cat == "すべて":
         df_filtered = df_display_books
     else:
+        # 選んだカテゴリと完全に一致するものだけに絞る
         df_filtered = df_display_books[df_display_books["category"] == selected_cat]
-
+        
     # --- 3. 選出状況チェック ---
     my_selection = df_votes[(df_votes["user_name"] == st.session_state.USER) & (df_votes["action"] == "選出")]
     nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
@@ -238,50 +239,46 @@ with tab1:
             st.cache_data.clear()
             st.rerun()
     
-    # 表示用のデータ(df_display_books)を使用する
-    categories = df_display_books["category"].dropna().unique() if not df_display_books.empty else []
-    
-    for cat in categories:
-        st.markdown(f"### 📂 {cat}")
-        for _, row in df_display_books[df_display_books["category"] == cat].iterrows():
+    # --- 5. 本の表示（df_filtered を使用） ---
+    if df_filtered.empty:
+        st.info("該当する本がありません。")
+    else:
+        # 💡 df_filtered からカテゴリを抽出
+        categories = df_filtered["category"].dropna().unique()
+        
+        for cat in categories:
+            st.markdown(f"### 📂 {cat}")
+            # 💡 ループ内も df_filtered を参照するように変更
+            category_books = df_filtered[df_filtered["category"] == cat]
             
-            b_id = str(row["id"])
-            is_nominated = b_id in nominated_ids
-            
-            # --- カード型のデザインコンテナ ---
-            with st.container(border=True):
-                # 1. タイトルと著者名
-                st.markdown(f"""
-                    <div style='line-height: 1.4; margin-bottom: 10px;'>
-                        <div style='font-size: 1.1rem; font-weight: bold; color: #333;'>{row['title']}</div>
-                        <div style='color: #666; font-size: 0.85rem;'>{row['author']}</div>
-                    </div>
-                """, unsafe_allow_html=True)
-                    
-                # 2. ボタン配置
-                col_b1, col_b2 = st.columns([1, 1])
-                with col_b1:
-                    if row["url"]: 
-                        st.link_button("🔗 詳細", row["url"], use_container_width=True)
-                    else:
-                        st.button("詳細なし", disabled=True, use_container_width=True, key=f"no_url_{b_id}")
+            for _, row in category_books.iterrows():
+                b_id = str(row["id"])
+                is_nominated = b_id in nominated_ids
                 
-                with col_b2:
-                    # 💡 自分が選んだ本の場合
-                    if not my_selection.empty and b_id == str(my_selection.iloc[0]["book_id"]):
-                        # 自分が選んでいる本だけ名前を変える
-                        st.button("✅ これを選んだ", disabled=True, use_container_width=True, key=f"my_{b_id}")
+                with st.container(border=True):
+                    st.markdown(f"""
+                        <div style='line-height: 1.4; margin-bottom: 10px;'>
+                            <div style='font-size: 1.1rem; font-weight: bold; color: #333;'>{row['title']}</div>
+                            <div style='color: #666; font-size: 0.85rem;'>{row['author']}</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                        
+                    col_b1, col_b2 = st.columns([1, 1])
+                    with col_b1:
+                        if row["url"]: 
+                            st.link_button("🔗 詳細", row["url"], use_container_width=True)
+                        else:
+                            st.button("詳細なし", disabled=True, use_container_width=True, key=f"no_url_{b_id}")
                     
-                    # 💡 他の人が選んだ本
-                    elif is_nominated:
-                        st.button("選出済", disabled=True, use_container_width=True, key=f"nom_{b_id}")
-                    
-                    # 💡 まだ何も選んでいない（選べる状態）
-                    else:
-                        # まだ何も選んでいなければ赤（Primary）、1冊選んだ後はグレー（Disabled）
-                        is_disabled = not my_selection.empty
-                        if st.button("これを選ぶ", key=f"sel_{b_id}", disabled=is_disabled, use_container_width=True, type="primary"):
-                            save_and_refresh("votes", {"action": "選出", "book_id": b_id})
+                    with col_b2:
+                        if not my_selection.empty and b_id == str(my_selection.iloc[0]["book_id"]):
+                            st.button("✅ これを選んだ", disabled=True, use_container_width=True, key=f"my_{b_id}")
+                        elif is_nominated:
+                            st.button("選出済", disabled=True, use_container_width=True, key=f"nom_{b_id}")
+                        else:
+                            is_disabled = not my_selection.empty
+                            if st.button("これを選ぶ", key=f"sel_{b_id}", disabled=is_disabled, use_container_width=True, type="primary"):
+                                save_and_refresh("votes", {"action": "選出", "book_id": b_id})          
                                 
 # --- 7. PAGE 2: RANKING & VOTE ---
 with tab2:
