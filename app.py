@@ -123,194 +123,193 @@ if not st.session_state.USER:
 df_books, df_votes = fetch_data()
 df_events = fetch_events()
 
-# TOP: 次回予告エリア
-# 開催日が今日以降の直近のイベントを取得
+# 固定ヘッダー（ログインユーザー表示）
+c_head1, c_head_upd = st.columns([0.8, 0.2])
+with c_head1:
+    st.subheader(f"{st.session_state.U_ICON} {st.session_state.USER} さん")
+with c_head_upd:
+    if st.button("🔄 更新", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+
+# ② 次回の読書会（TOPインフォメーション）
 future_events = df_events[df_events["event_date"] >= datetime.now().strftime("%Y-%m-%d")]
-next_event = future_events.iloc[-1] if not future_events.empty else None
 
-with st.container(border=True):
-    col_t1, col_t2 = st.columns([0.8, 0.2])
-    with col_t1:
-        st.markdown("### 📢 次回の読書会")
-        if next_event is not None:
-            # booksテーブルと結合して取得している想定
-            b_info = next_event.get("books", {})
-            st.markdown(f"📅 **{next_event['event_date']}**")
-            st.markdown(f"📖 **{b_info.get('title', '未定')}** ({b_info.get('author', '')})")
-        else:
-            st.write("次回の予定はまだ決まっていません。")
-    with col_t2:
-        if st.button("🔄 更新", use_container_width=True):
-            st.cache_data.clear()
-            st.rerun()
-
+if not future_events.empty:
+    next_ev = future_events.sort_values("event_date").iloc[0]
+    b_info = next_ev.get("books", {})
+    with st.container(border=True):
+        st.markdown(f"📅 **次回の開催: {next_ev['event_date']}**")
+        st.markdown(f"📖 **課題本: {b_info.get('title', '未定')}**")
+else:
+    # ✨ 予定がない時の表示を追加
+    with st.container(border=True):
+        st.info("次回の開催は未定です😢")
+    
 # --- タブの作成 ---
 tab1, tab2, tab3, tab4 = st.tabs(["📖 Books", "🗳️ Votes", "📜 History", "⚙️ Admin"])
 
 # --- PAGE 1: BOOK LIST ---
 with tab1:
-    if st.session_state.page == "list":
+    # --- 🆕 本の登録フォーム ---
+    with st.expander("➕ 新しい本を登録する"):
+        cat_list = fetch_categories() # マスタから取得
+        with st.form("add_book_form", clear_on_submit=True):
+            new_title = st.text_input("* 書籍タイトル")
+            new_author = st.text_input("著者名")
+            new_cat = st.radio("カテゴリーを選択", cat_list, horizontal=True)
+            new_url = st.text_input("詳細URL（出版社URLなど）")
+            submit_book = st.form_submit_button("本を登録する", use_container_width=True, type="primary")
+            
+            if submit_book:
+                if new_title:
+                    book_data = {
+                        "title": new_title,
+                        "author": new_author,
+                        "category": new_cat,
+                        "url": new_url,
+                        "created_by": st.session_state.USER  # ログインユーザーを記録
+                    }
+                    try:
+                        supabase.table("books").insert(book_data).execute()
+                        st.success(f"「{new_title}」を登録しました！")
+                        st.cache_data.clear()
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"登録エラー: {e}")
+                else:
+                    st.warning("タイトルは必ず入力してください。")
     
-        # --- 🆕 本の登録フォーム ---
-        with st.expander("➕ 新しい本を登録する"):
-            cat_list = fetch_categories() # マスタから取得
-            with st.form("add_book_form", clear_on_submit=True):
-                new_title = st.text_input("* 書籍タイトル")
-                new_author = st.text_input("著者名")
-                new_cat = st.radio("カテゴリーを選択", cat_list, horizontal=True)
-                new_url = st.text_input("詳細URL（出版社URLなど）")
-                submit_book = st.form_submit_button("本を登録する", use_container_width=True, type="primary")
-                
-                if submit_book:
-                    if new_title:
-                        book_data = {
-                            "title": new_title,
-                            "author": new_author,
-                            "category": new_cat,
-                            "url": new_url,
-                            "created_by": st.session_state.USER  # ログインユーザーを記録
-                        }
-                        try:
-                            supabase.table("books").insert(book_data).execute()
-                            st.success(f"「{new_title}」を登録しました！")
-                            st.cache_data.clear()
-                            time.sleep(1)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"登録エラー: {e}")
+    # 自分がすでに選出しているかチェック
+    my_selection = df_votes[(df_votes["user_name"] == st.session_state.USER) & (df_votes["action"] == "選出")]
+    nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
+
+    if not my_selection.empty:
+        st.success("✅ 1冊選出済みです。")
+        if st.button("選出をキャンセルして選び直す", use_container_width=True):
+            target_id = str(my_selection.iloc[0]["book_id"])
+            supabase.table("votes").delete().eq("book_id", target_id).eq("user_name", st.session_state.USER).eq("action", "選出").execute()
+            st.cache_data.clear()
+            st.rerun()
+    
+    for cat in df_books["category"].dropna().unique():
+        st.markdown(f"### 📂 {cat}")
+        for _, row in df_books[df_books["category"] == cat].iterrows():
+            b_id = str(row["id"])
+            is_nominated = b_id in nominated_ids
+            
+            # --- カード型のデザインコンテナ ---
+            with st.container(border=True):
+                # 1. タイトルと著者名
+                st.markdown(f"""
+                    <div style='line-height: 1.4; margin-bottom: 10px;'>
+                        <div style='font-size: 1.1rem; font-weight: bold; color: #333;'>{row['title']}</div>
+                        <div style='color: #666; font-size: 0.85rem;'>{row['author']}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+                    
+                # 2. ボタン配置
+                col_b1, col_b2 = st.columns([1, 1])
+                with col_b1:
+                    if row["url"]: 
+                        st.link_button("🔗 詳細", row["url"], use_container_width=True)
                     else:
-                        st.warning("タイトルは必ず入力してください。")
-    
-        # 自分がすでに選出しているかチェック
-        my_selection = df_votes[(df_votes["user_name"] == st.session_state.USER) & (df_votes["action"] == "選出")]
-        nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
-    
-        if not my_selection.empty:
-            st.success("✅ 1冊選出済みです。")
-            if st.button("選出をキャンセルして選び直す", use_container_width=True):
-                target_id = str(my_selection.iloc[0]["book_id"])
-                supabase.table("votes").delete().eq("book_id", target_id).eq("user_name", st.session_state.USER).eq("action", "選出").execute()
-                st.cache_data.clear()
-                st.rerun()
-    
-        for cat in df_books["category"].dropna().unique():
-            st.markdown(f"### 📂 {cat}")
-            for _, row in df_books[df_books["category"] == cat].iterrows():
-                b_id = str(row["id"])
-                is_nominated = b_id in nominated_ids
+                        st.button("詳細なし", disabled=True, use_container_width=True, key=f"no_url_{b_id}")
                 
-                # --- カード型のデザインコンテナ ---
-                with st.container(border=True):
-                    # 1. タイトルと著者名
-                    st.markdown(f"""
-                        <div style='line-height: 1.4; margin-bottom: 10px;'>
-                            <div style='font-size: 1.1rem; font-weight: bold; color: #333;'>{row['title']}</div>
-                            <div style='color: #666; font-size: 0.85rem;'>{row['author']}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
+                with col_b2:
+                    # 💡 自分が選んだ本の場合
+                    if not my_selection.empty and b_id == str(my_selection.iloc[0]["book_id"]):
+                        # 自分が選んでいる本だけ名前を変える
+                        st.button("✅ これを選んだ", disabled=True, use_container_width=True, key=f"my_{b_id}")
                     
-                    # 2. ボタン配置
-                    col_b1, col_b2 = st.columns([1, 1])
-                    with col_b1:
-                        if row["url"]: 
-                            st.link_button("🔗 詳細", row["url"], use_container_width=True)
-                        else:
-                            st.button("詳細なし", disabled=True, use_container_width=True, key=f"no_url_{b_id}")
+                    # 💡 他の人が選んだ本
+                    elif is_nominated:
+                        st.button("選出済", disabled=True, use_container_width=True, key=f"nom_{b_id}")
                     
-                    with col_b2:
-                        # 💡 自分が選んだ本の場合
-                        if not my_selection.empty and b_id == str(my_selection.iloc[0]["book_id"]):
-                            # 自分が選んでいる本だけ名前を変える
-                            st.button("✅ これを選んだ", disabled=True, use_container_width=True, key=f"my_{b_id}")
-                        
-                        # 💡 他の人が選んだ本
-                        elif is_nominated:
-                            st.button("選出済", disabled=True, use_container_width=True, key=f"nom_{b_id}")
-                        
-                        # 💡 まだ何も選んでいない（選べる状態）
-                        else:
-                            # まだ何も選んでいなければ赤（Primary）、1冊選んだ後はグレー（Disabled）
-                            is_disabled = not my_selection.empty
-                            if st.button("これを選ぶ", key=f"sel_{b_id}", disabled=is_disabled, use_container_width=True, type="primary"):
-                                save_and_refresh("votes", {"action": "選出", "book_id": b_id})
+                    # 💡 まだ何も選んでいない（選べる状態）
+                    else:
+                        # まだ何も選んでいなければ赤（Primary）、1冊選んだ後はグレー（Disabled）
+                        is_disabled = not my_selection.empty
+                        if st.button("これを選ぶ", key=f"sel_{b_id}", disabled=is_disabled, use_container_width=True, type="primary"):
+                            save_and_refresh("votes", {"action": "選出", "book_id": b_id})
                                 
 # --- 7. PAGE 2: RANKING & VOTE ---
 with tab2:
-        else:
-        st.header("🏆 Ranking")
-        nominated_rows = df_votes[df_votes["action"] == "選出"]
+    st.header("🏆 Ranking")
+    nominated_rows = df_votes[df_votes["action"] == "選出"]
+    
+    if nominated_rows.empty:
+        st.info("まだ候補が選ばれていません。")
+    else:
+        # --- ランキング表 ---
+        vote_only = df_votes[df_votes["action"] == "投票"]
+        user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
+        summary = []
+        for _, n in nominated_rows.iterrows():
+            b_id = n["book_id"]
+            b_votes = vote_only[vote_only["book_id"] == b_id]
+            details = ", ".join([f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()])
+            summary.append({"タイトル": n["書籍タイトル"], "点数": int(b_votes["points"].sum()), "内訳": details if details else "-"})
         
-        if nominated_rows.empty:
-            st.info("まだ候補が選ばれていません。")
-        else:
-            # --- ランキング表 ---
-            vote_only = df_votes[df_votes["action"] == "投票"]
-            user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
-            summary = []
-            for _, n in nominated_rows.iterrows():
-                b_id = n["book_id"]
-                b_votes = vote_only[vote_only["book_id"] == b_id]
-                details = ", ".join([f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()])
-                summary.append({"タイトル": n["書籍タイトル"], "点数": int(b_votes["points"].sum()), "内訳": details if details else "-"})
-            
-            ranking_df = pd.DataFrame(summary).sort_values("点数", ascending=False)
-            st.dataframe(ranking_df, hide_index=True, use_container_width=True)
-            
-            st.divider()
-            st.subheader("🗳️ 投票")
-            
-            my_votes = vote_only[vote_only["user_name"] == st.session_state.USER]
-            v_points = my_votes["points"].tolist()
-            url_map = dict(zip(df_books['id'].astype(str), df_books['url']))
+        ranking_df = pd.DataFrame(summary).sort_values("点数", ascending=False)
+        st.dataframe(ranking_df, hide_index=True, use_container_width=True)
         
-            for _, n in nominated_rows.iterrows():
-                b_id = str(n["book_id"])
-                current_p = int(my_votes[my_votes["book_id"] == b_id]["points"].sum())
-                b_url = url_map.get(b_id)
-                n_user = n["user_name"]
-                n_icon = user_icon_map.get(n_user, "👤")
-                is_my_nomination = (n_user == st.session_state.USER)
+        st.divider()
+        st.subheader("🗳️ 投票")
+        
+        my_votes = vote_only[vote_only["user_name"] == st.session_state.USER]
+        v_points = my_votes["points"].tolist()
+        url_map = dict(zip(df_books['id'].astype(str), df_books['url']))
+    
+        for _, n in nominated_rows.iterrows():
+            b_id = str(n["book_id"])
+            current_p = int(my_votes[my_votes["book_id"] == b_id]["points"].sum())
+            b_url = url_map.get(b_id)
+            n_user = n["user_name"]
+            n_icon = user_icon_map.get(n_user, "👤")
+            is_my_nomination = (n_user == st.session_state.USER)
+            
+            # --- カード型のデザインコンテナ ---
+            with st.container(border=True): # 枠線で囲んでカードっぽくする
+                # 1. タイトルと推薦者
+                st.markdown(f"""
+                    <div style='line-height: 1.4; margin-bottom: 10px;'>
+                        <div style='font-size: 1.1rem; font-weight: bold; color: #333;'>{n['書籍タイトル']}</div>
+                        <div style='color: #666; font-size: 0.85rem; margin-bottom: 8px;'>{n['著者名']}</div>
+                        <span style='background: #e1f5fe; border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; color: #01579b; font-weight: bold;'>
+                            推薦: {n_icon} {n_user}
+                        </span>
+                    </div>
+                """, unsafe_allow_html=True)
+    
+                # 2. ボタン配置（スマホでは自然に並ぶように設定）
+                # 詳細ボタンがある場合だけ表示
+                col_btn1, col_btn2 = st.columns([1, 2])
+                with col_btn1:
+                    if pd.notnull(b_url) and str(b_url).startswith("http"):
+                        st.link_button("🔗 詳細を見る", b_url, use_container_width=True)
+                    else:
+                        st.button("詳細なし", disabled=True, use_container_width=True, key=f"no_{b_id}")
                 
-                # --- カード型のデザインコンテナ ---
-                with st.container(border=True): # 枠線で囲んでカードっぽくする
-                    # 1. タイトルと推薦者
-                    st.markdown(f"""
-                        <div style='line-height: 1.4; margin-bottom: 10px;'>
-                            <div style='font-size: 1.1rem; font-weight: bold; color: #333;'>{n['書籍タイトル']}</div>
-                            <div style='color: #666; font-size: 0.85rem; margin-bottom: 8px;'>{n['著者名']}</div>
-                            <span style='background: #e1f5fe; border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; color: #01579b; font-weight: bold;'>
-                                推薦: {n_icon} {n_user}
-                            </span>
-                        </div>
-                    """, unsafe_allow_html=True)
-        
-                    # 2. ボタン配置（スマホでは自然に並ぶように設定）
-                    # 詳細ボタンがある場合だけ表示
-                    col_btn1, col_btn2 = st.columns([1, 2])
-                    with col_btn1:
-                        if pd.notnull(b_url) and str(b_url).startswith("http"):
-                            st.link_button("🔗 詳細を見る", b_url, use_container_width=True)
-                        else:
-                            st.button("詳細なし", disabled=True, use_container_width=True, key=f"no_{b_id}")
-                    
-                    with col_btn2:
-                        # 投票ボタンを横に2つ並べる
-                        v_col1, v_col2 = st.columns(2)
-                        with v_col1:
-                            d1 = is_my_nomination or (1 in v_points) or (current_p > 0)
-                            if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True, type="secondary"):
-                                save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 1})
-                        with v_col2:
-                            d2 = is_my_nomination or (2 in v_points) or (current_p > 0)
-                            if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True, type="primary"): # 大事な方を色付きに
-                                save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2})
-        
-            st.divider()
-            st.subheader(f"🗳️ {st.session_state.USER} さんの投票")
-            if st.button("自分の投票をすべてリセット", type="secondary", use_container_width=True):
-                supabase.table("votes").delete().eq("user_name", st.session_state.USER).eq("action", "投票").execute()
-                st.cache_data.clear()
-                st.rerun()
+                with col_btn2:
+                    # 投票ボタンを横に2つ並べる
+                    v_col1, v_col2 = st.columns(2)
+                    with v_col1:
+                        d1 = is_my_nomination or (1 in v_points) or (current_p > 0)
+                        if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True, type="secondary"):
+                            save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 1})
+                    with v_col2:
+                        d2 = is_my_nomination or (2 in v_points) or (current_p > 0)
+                        if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True, type="primary"): # 大事な方を色付きに
+                            save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2})
+    
+        st.divider()
+        st.subheader(f"🗳️ {st.session_state.USER} さんの投票")
+        if st.button("自分の投票をすべてリセット", type="secondary", use_container_width=True):
+            supabase.table("votes").delete().eq("user_name", st.session_state.USER).eq("action", "投票").execute()
+            st.cache_data.clear()
+            st.rerun()
 
 # --- Tab 3: History (これまでの読書会) ---
 with tab3:
