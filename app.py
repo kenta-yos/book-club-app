@@ -178,13 +178,20 @@ if st.session_state.page == "list":
                         st.button("詳細なし", disabled=True, use_container_width=True, key=f"no_url_{b_id}")
                 
                 with col_b2:
-                    disabled = is_nominated or not my_selection.empty
-                    # すでに誰かが選んでいる場合は「選出済」
-                    if is_nominated:
+                    # 💡 自分が選んだ本の場合
+                    if not my_selection.empty and b_id == str(my_selection.iloc[0]["book_id"]):
+                        # 自分が選んでいる本だけ名前を変える
+                        st.button("✅ これを選んだ", disabled=True, use_container_width=True, key=f"my_{b_id}")
+                    
+                    # 💡 他の人が選んだ本
+                    elif is_nominated:
                         st.button("選出済", disabled=True, use_container_width=True, key=f"nom_{b_id}")
+                    
+                    # 💡 まだ何も選んでいない（選べる状態）
                     else:
-                        # 💡 type="primary" で赤（オレンジ）系の目立つボタンになります
-                        if st.button("これを選ぶ", key=f"sel_{b_id}", disabled=disabled, use_container_width=True, type="primary"):
+                        # まだ何も選んでいなければ赤（Primary）、1冊選んだ後はグレー（Disabled）
+                        is_disabled = not my_selection.empty
+                        if st.button("これを選ぶ", key=f"sel_{b_id}", disabled=is_disabled, use_container_width=True, type="primary"):
                             save_and_refresh("votes", {"action": "選出", "book_id": b_id})
                             
 # --- 7. PAGE 2: RANKING & VOTE ---
