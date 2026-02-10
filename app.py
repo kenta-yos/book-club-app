@@ -372,32 +372,31 @@ with tab3:
 
 # --- Tab 4: Admin (管理者画面) ---
 with tab4:
-    st.subheader("管理者用設定")
-    
     # 1. 現在「選出」されている本の情報を取得
     nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
     nominated_books = df_books[df_books["id"].astype(str).isin([str(x) for x in nominated_ids])]
 
-    # 2. どちらのリストをベースにするか決定（選出本があればそれを優先）
+    # 2. リストの決定（選出中の本を優先、なければ全リスト）
     if not nominated_books.empty:
-        st.info("💡 現在メンバーによって選出（投票中）の本から選択できます")
-        base_list = nominated_books
+        st.info("🗳️ 現在メンバーが選出中の本が表示されています")
+        final_list = nominated_books
     else:
-        st.warning("現在選出されている本がありません。未実施の全リストから検索します。")
-        base_list = df_display_books
+        st.warning("現在選出されている本がありません。全リストから表示します。")
+        final_list = df_display_books
 
     # 3. 登録フォーム
     with st.form("admin_form"):
         st.write("次回の開催情報を登録")
         next_date = st.date_input("読書会の日程")
         
-        # 選択肢の作成（final_listを使用）
+        # 選択肢の作成
         if not final_list.empty:
+            # カテゴリとタイトルで選択肢を作成
             book_options = {f"[{row['category']}] {row['title']}": row['id'] for _, row in final_list.iterrows()}
             target_label = st.selectbox("課題本を確定", options=list(book_options.keys()))
             target_book_id = book_options[target_label]
         else:
-            st.error("該当する本がありません。検索ワードを変えてください。")
+            st.error("選択可能な本がありません。")
             target_book_id = None
         
         if st.form_submit_button("次回予告を確定する", type="primary"):
@@ -406,21 +405,11 @@ with tab4:
                     "event_date": str(next_date),
                     "book_id": str(target_book_id)
                 }
-                try:
-                    supabase.table("events").insert(new_event).execute()
-                    st.success("次回予告を更新しました！この本はBooks一覧から非表示になります。")
-                    st.cache_data.clear()
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"データベース登録エラー: {e}")
-            else:
-                st.error("本が選択されていないため登録できません。")
-
-    st.divider()
-    if st.button("Logout", use_container_width=True):
-        st.session_state.USER = None
-        st.rerun()
+                supabase.table("events").insert(new_event).execute()
+                st.success("次回予告を更新しました！")
+                st.cache_data.clear()
+                time.sleep(1)
+                st.rerun()
 
     st.divider()
     if st.button("Logout", use_container_width=True):
