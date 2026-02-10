@@ -71,16 +71,27 @@ if not st.session_state.USER:
     
     if not user_df.empty:
         user_list = user_df.sort_values("user_name").to_dict('records')
+        # 3人ずつ分割して表示
         for i in range(0, len(user_list), 3):
-            cols = st.columns(3)
-            chunk = user_list[i:i+3]
-            for idx, row in enumerate(chunk):
-                with cols[idx]:
-                    if st.button(f"{row['icon']}\n{row['user_name']}", key=f"l_{row['user_name']}", use_container_width=True):
+            # 💡 horizontal=True を指定することでスマホでも横並びを維持します
+            with st.container(horizontal=True):
+                chunk = user_list[i:i+3]
+                for row in chunk:
+                    btn_key = f"l_{row['user_name']}"
+                    
+                    # ボタン内の改行とアイコン表示。use_container_widthで幅を揃えます
+                    if st.button(f"{row['icon']}\n{row['user_name']}", key=btn_key, use_container_width=True):
+                        # ログ出力（テーブル名は適宜合わせてください）
+                        try:
+                            supabase.table("access_logs").insert({"user_name": row['user_name']}).execute()
+                        except:
+                            pass # ログ用テーブルがない場合はスキップ
+                            
                         st.session_state.USER = row['user_name']
                         st.session_state.U_ICON = row['icon']
+                        st.query_params["user"] = row['user_name']
                         st.rerun()
-    st.stop()
+        st.stop()
 
 # --- 2. メインコンテンツ ---
 df_books, df_votes = fetch_data()
