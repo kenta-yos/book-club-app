@@ -179,8 +179,6 @@ if st.session_state.page == "list":
                 else:
                     st.warning("タイトルは必ず入力してください。")
 
-    st.divider()
-    
     # 自分がすでに選出しているかチェック
     my_selection = df_votes[(df_votes["user_name"] == st.session_state.USER) & (df_votes["action"] == "選出")]
     nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
