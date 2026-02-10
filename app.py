@@ -211,3 +211,16 @@ else:
                 d2 = (2 in v_points) or (current_p > 0)
                 if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True):
                     save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2})
+        st.divider()
+        st.subheader(f"🗳️ {st.session_state.U_ICON} {st.session_state.USER} さんの投票")
+        
+        # 自分の投票をリセットするボタン（自分だけのデータに限定）
+        if st.button("自分の投票をすべてリセット", type="secondary"):
+            with st.spinner("リセット中..."):
+                supabase.table("votes")\
+                    .delete()\
+                    .eq("user_name", st.session_state.USER)\
+                    .eq("action", "投票")\
+                    .execute()
+                st.cache_data.clear()
+                st.rerun()
