@@ -362,14 +362,22 @@ with tab3:
                 st.write(f"📅 {ev['event_date']}")
                 st.markdown(f"**{b.get('title')}** / {b.get('author')} ({b.get('category')})")
         
-        # カテゴリの円グラフ（これまでの全課題本が対象）
+        # カテゴリの円グラフ
         st.divider()
         st.subheader("📊 カテゴリ内訳")
         if not past_events.empty:
-            # カテゴリを集計
-            cat_counts = pd.DataFrame([e.get("books", {}).get("category") for e in past_events.to_dict('records')]).value_counts()
-            st.pie_chart(cat_counts)
-
+            # 1. 過去のイベントからカテゴリだけを抽出
+            categories = [e.get("books", {}).get("category") for e in past_events.to_dict('records') if e.get("books")]
+            
+            if categories:
+                # 2. PandasのSeriesに変換してカウント
+                cat_series = pd.Series(categories).value_counts()
+                
+                # 3. Streamlitのグラフに渡す
+                st.pie_chart(cat_series)
+            else:
+                st.info("集計できるカテゴリデータがありません。")
+                
 # --- Tab 4: Admin (管理者画面) ---
 with tab4:
     # 1. 現在「選出」されている本の情報を取得
