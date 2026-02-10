@@ -1,4 +1,3 @@
-import streamlit as st
 from supabase import create_client, Client
 import pandas as pd
 from datetime import datetime
@@ -157,9 +156,17 @@ if "event_date" in df_events.columns and not df_events.empty:
         # 未来のイベントがある場合
         next_ev = future_events.sort_values("event_date").iloc[0]
         b_info = next_ev.get("books") if next_ev.get("books") else {}
+        b_url = b_info.get("url")
+        
         with st.container(border=True):
             st.markdown(f"📅 **次回の開催: {next_ev['event_date']}**")
-            st.markdown(f"📖 **課題本: {b_info.get('title', '未定')}**")
+            
+            # ✨ ここを修正：URLがあればリンクにし、なければテキストのみ表示
+            if b_url and str(b_url).startswith("http"):
+                st.markdown(f"📖 **課題本: [{b_info.get('title', '未定')}]({b_url})**")
+            else:
+                st.markdown(f"📖 **課題本: {b_info.get('title', '未定')}**")
+                
     else:
         # 未来のイベントがない場合
         with st.container(border=True):
