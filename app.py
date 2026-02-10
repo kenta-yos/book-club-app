@@ -362,19 +362,33 @@ with tab3:
         response = supabase.table("events").select("*, books(*)").execute()
         all_events = pd.DataFrame(response.data)
         
-        # 今日より前の日付のイベントを「過去」とする
-        from datetime import datetime
-        today = datetime.now().date()
+        # 日付処理
         all_events["event_date_dt"] = pd.to_datetime(all_events["event_date"]).dt.date
+        all_events["year"] = pd.to_datetime(all_events["event_date"]).dt.year.astype(str)
+        
+        today = datetime.now().date()
         past_events = all_events[all_events["event_date_dt"] < today]
     except Exception as e:
         st.error(f"データの取得に失敗しました: {e}")
-        past_events = pd.DataFrame() # エラー時は空のDFにする
+        past_events = pd.DataFrame()
 
     if not past_events.empty:
-        past_events = past_events.sort_values("event_date", ascending=False)
+        # --- 🆕 年号絞り込みパネル（新しい順） ---
+        # 重複を排除して、数字の大きい順（2026, 2025...）に並べる
+        unique_years = sorted(past_events["year"].unique().tolist(), reverse=True)
+        year_options = ["すべて"] + unique_years
         
-        for _, row in past_events.iterrows():
+        # default="すべて" にしておけば、最初は全歴史が見れます
+        selected_year = st.pills("開催年で絞り込み", year_options, default="すべて")
+
+        # フィルタリング実行
+        if selected_year == "すべて":
+            df_history_display = past_events.sort_values("event_date", ascending=False)
+        else:
+            df_history_display = past_events[past_events["year"] == selected_year].sort_values("event_date", ascending=False)
+
+        # --- リスト表示部分 ---
+        for _, row in df_history_display.iterrows():
             book = row.get("books", {})
             if not book: continue
 
