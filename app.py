@@ -217,8 +217,7 @@ with tab1:
     unique_cats = sorted(df_display_books["category"].dropna().unique().tolist())
     filter_options = ["すべて"] + unique_cats
     
-    # st.pills が使えない環境を考慮し、より確実な st.radio にしています
-    selected_cat = st.radio("カテゴリで絞り込み", filter_options, index=0, horizontal=True)
+    selected_cat = st.pills("カテゴリで絞り込み", filter_options, default="すべて")
 
     # 3. フィルタリング（ここが重要！）
     if selected_cat == "すべて":
