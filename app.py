@@ -15,10 +15,20 @@ st.set_page_config(page_title="Book Club", layout="wide")
 # スタイル調整
 st.markdown("""
     <style>
-    /* ページ全体の最下部に余白を追加 */
-    .main .block-container {
-        padding-bottom: 5rem !important;
+    /* 1. ページ全体のスクロール領域の底上げ */
+    .stApp {
+        margin-bottom: 5rem !important;
     }
+
+    /* 2. コンテンツ容器の底上げ（スマホのWebview対策） */
+    [data-testid="stVerticalBlock"] > div:last-child {
+        margin-bottom: 5rem !important;
+    }
+
+    /* 3. それでも効かない時用の物理的な空白 */
+    .bottom-spacer {
+        height: 100px;
+    }    
     
     /* ① ヘッダー（上部のバーとメニューボタン）を消す */
     header {visibility: hidden;}
