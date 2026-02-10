@@ -163,7 +163,7 @@ else:
         
         # ユーザーテーブルからアイコンを取得するための辞書作成
         user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
-        
+
         for _, n in nominated_rows.iterrows():
             b_id = n["book_id"]
             b_votes = vote_only[vote_only["book_id"] == b_id]
@@ -175,38 +175,42 @@ else:
             ])
             
             summary.append({
-                "タイトル": n["書籍タイトル"],
-                "合計点": int(b_votes["points"].sum()), # 小数点削除
+                "タイトル": n["書籍タイトル"], # ここは fetch_data で入れた title
+                "合計点": int(b_votes["points"].sum()),
                 "投票内訳": details if details else "-"
             })
         
-        # DataFrame作成
         ranking_df = pd.DataFrame(summary)
-        
         if not ranking_df.empty:
-            # 合計点で降順ソート
             ranking_df = ranking_df.sort_values("合計点", ascending=False)
-            # インデックス（左端の番号）を非表示にして表示
             st.dataframe(ranking_df, hide_index=True, use_container_width=True)
             
         st.divider()
-        
         st.subheader("🗳️ 投票")
         
         my_votes = vote_only[vote_only["user_name"] == st.session_state.USER]
         v_points = my_votes["points"].tolist()
 
-        
-        
+        # URL参照用の辞書作成 (詳細ボタン用)
+        url_map = dict(zip(df_books['id'].astype(str), df_books['url']))
+
         for _, n in nominated_rows.iterrows():
-            b_id = n["book_id"]
-            # ここを修正：n["user_name"] などではなくJOIN済みの「書籍タイトル」を表示
-            current_p = my_votes[my_votes["book_id"] == b_id]["points"].sum()
+            # n["book_id"] を確実に文字列のIDとして取得
+            b_id = str(n["book_id"])
+            current_p = int(my_votes[my_votes["book_id"] == b_id]["points"].sum())
+            b_url = url_map.get(b_id)
             
-            vc1, vc2, vc3 = st.columns([3, 1, 1])
+            # レイアウト調整：タイトル, 詳細ボタン, 1点, 2点
+            vc1, vc_url, vc2, vc3 = st.columns([3, 0.8, 0.7, 0.7])
+            
             with vc1:
-                # 正しく「タイトル」を表示
+                # 💡 ここが重要：n["書籍タイトル"] を明示的に表示
                 st.markdown(f"<div class='title-text'>{n['書籍タイトル']}</div>", unsafe_allow_html=True)
+            
+            with vc_url:
+                if pd.notnull(b_url) and str(b_url).startswith("http"):
+                    st.link_button("詳細", b_url, use_container_width=True)
+            
             with vc2:
                 d1 = (1 in v_points) or (current_p > 0)
                 if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True):
@@ -215,10 +219,13 @@ else:
                 d2 = (2 in v_points) or (current_p > 0)
                 if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True):
                     save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2})
+            
+            # 区切り線
+            st.markdown('<div style="border-bottom: 1px solid #eee; margin-bottom: 10px;"></div>', unsafe_allow_html=True)
+
         st.divider()
         st.subheader(f"🗳️ {st.session_state.U_ICON} {st.session_state.USER} さんの投票")
         
-        # 自分の投票をリセットするボタン（自分だけのデータに限定）
         if st.button("自分の投票をすべてリセット", type="secondary"):
             with st.spinner("リセット中..."):
                 supabase.table("votes")\
