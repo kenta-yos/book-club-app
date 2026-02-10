@@ -213,7 +213,7 @@ else:
         # URL参照用の辞書作成 (詳細ボタン用)
         url_map = dict(zip(df_books['id'].astype(str), df_books['url']))
 
-for _, n in nominated_rows.iterrows():
+    for _, n in nominated_rows.iterrows():
             b_id = str(n["book_id"])
             current_p = int(my_votes[my_votes["book_id"] == b_id]["points"].sum())
             b_url = url_map.get(b_id)
