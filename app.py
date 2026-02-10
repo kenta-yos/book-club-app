@@ -374,25 +374,37 @@ with tab3:
 with tab4:
     st.subheader("管理者用設定")
     
-    # ✨ 検索窓をフォームの外に出すことで、入力した瞬間に下のselectboxが更新されます
-    search_query = st.text_input("🔍 課題本をタイトルで検索", placeholder="タイトルの一部を入力...")
-    
-    if search_query:
-        filtered_books = df_display_books[df_display_books["title"].str.contains(search_query, case=False, na=False)]
-    else:
-        filtered_books = df_display_books
+    # 1. 現在「選出」されている本の情報を取得
+    nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
+    nominated_books = df_books[df_books["id"].astype(str).isin([str(x) for x in nominated_ids])]
 
+    # 2. どちらのリストをベースにするか決定（選出本があればそれを優先）
+    if not nominated_books.empty:
+        st.info("💡 現在メンバーによって選出（投票中）の本から選択できます")
+        base_list = nominated_books
+    else:
+        st.warning("現在選出されている本がありません。未実施の全リストから検索します。")
+        base_list = df_display_books
+
+    # 3. 検索フィルタ（base_listに対してタイトルで絞り込み）
+    search_query = st.text_input("🔍 タイトルで絞り込む", placeholder="入力すると下のセレクトボックスが更新されます...")
+    if search_query:
+        final_list = base_list[base_list["title"].str.contains(search_query, case=False, na=False)]
+    else:
+        final_list = base_list
+
+    # 4. 登録フォーム
     with st.form("admin_form"):
         st.write("次回の開催情報を登録")
         next_date = st.date_input("読書会の日程")
         
-        # 選択肢の作成
-        if not filtered_books.empty:
-            book_options = {f"[{row['category']}] {row['title']}": row['id'] for _, row in filtered_books.iterrows()}
+        # 選択肢の作成（final_listを使用）
+        if not final_list.empty:
+            book_options = {f"[{row['category']}] {row['title']}": row['id'] for _, row in final_list.iterrows()}
             target_label = st.selectbox("課題本を確定", options=list(book_options.keys()))
             target_book_id = book_options[target_label]
         else:
-            st.warning("該当する本がありません。")
+            st.error("該当する本がありません。検索ワードを変えてください。")
             target_book_id = None
         
         if st.form_submit_button("次回予告を確定する", type="primary"):
@@ -401,12 +413,21 @@ with tab4:
                     "event_date": str(next_date),
                     "book_id": str(target_book_id)
                 }
-                supabase.table("events").insert(new_event).execute()
-                st.success("次回予告を更新しました！Books一覧から非表示になりました。")
-                st.cache_data.clear()
-                st.rerun()
+                try:
+                    supabase.table("events").insert(new_event).execute()
+                    st.success("次回予告を更新しました！この本はBooks一覧から非表示になります。")
+                    st.cache_data.clear()
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"データベース登録エラー: {e}")
             else:
-                st.error("本が選択されていません。")
+                st.error("本が選択されていないため登録できません。")
+
+    st.divider()
+    if st.button("Logout", use_container_width=True):
+        st.session_state.USER = None
+        st.rerun()
 
     st.divider()
     if st.button("Logout", use_container_width=True):
