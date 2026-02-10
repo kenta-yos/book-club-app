@@ -366,15 +366,17 @@ with tab3:
         st.divider()
         st.subheader("📊 カテゴリ内訳")
         if not past_events.empty:
-            # 1. 過去のイベントからカテゴリだけを抽出
-            categories = [e.get("books", {}).get("category") for e in past_events.to_dict('records') if e.get("books")]
-            
-            if categories:
-                # 2. PandasのSeriesに変換してカウント
-                cat_series = pd.Series(categories).value_counts()
+            # 1. カテゴリをリスト化（Noneを除外）
+            cat_data = [e.get("books", {}).get("category") for e in past_events.to_dict('records') if e.get("books")]
+            cat_list = [c for c in cat_data if c is not None]
+
+            if cat_list:
+                # 2. DataFrameとして集計（ここがポイント）
+                df_counts = pd.Series(cat_list).value_counts().reset_index()
+                df_counts.columns = ["category", "count"]
                 
-                # 3. Streamlitのグラフに渡す
-                st.pie_chart(cat_series)
+                # 3. グラフ表示（indexを指定して確実にラベルを認識させる）
+                st.pie_chart(df_counts, names="category", values="count")
             else:
                 st.info("集計できるカテゴリデータがありません。")
                 
