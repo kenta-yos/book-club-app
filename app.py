@@ -244,25 +244,26 @@ else:
                 <div style='color: gray; font-size: 0.8rem; margin-top: 4px; margin-bottom: 8px; margin-left: 2px;'>{n['著者名']}</div>
             """, unsafe_allow_html=True)
 
+            # --- 2段目：ボタン3列（絶対に横並びを死守） ---
             with st.container(horizontal=True):
-                btn_col1, btn_col2, btn_col3 = st.columns(3)
+                v_col1, v_col2, v_col3 = st.columns(3) # 均等に3分割
                 
-                with btn_col1:
+                with v_col1:
                     if pd.notnull(b_url) and str(b_url).startswith("http"):
                         st.link_button("詳細", b_url, use_container_width=True)
                     else:
-                        st.button("詳細なし", disabled=True, use_container_width=True)
+                        st.button("詳細なし", disabled=True, use_container_width=True, key=f"nodetail_{b_id}")
                 
-                with btn_col2:
+                with v_col2:
                     d1 = is_my_nomination or (1 in v_points) or (current_p > 0)
                     if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True):
                         save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 1})
                 
-                with btn_col3:
+                with v_col3:
                     d2 = is_my_nomination or (2 in v_points) or (current_p > 0)
                     if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True):
-                        save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2})        
-                                        
+                        save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2})
+
         st.divider()
         st.subheader(f"🗳️ {st.session_state.U_ICON} {st.session_state.USER} さんの投票")
         
