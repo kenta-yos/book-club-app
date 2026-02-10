@@ -362,30 +362,38 @@ with tab3:
                 st.write(f"📅 {ev['event_date']}")
                 st.markdown(f"**{b.get('title')}** / {b.get('author')} ({b.get('category')})")
         
-        # カテゴリの円グラフ
+        # --- 執念の円グラフ ---
         st.divider()
         st.subheader("📊 カテゴリ内訳")
+        
         if not past_events.empty:
-            # 1. カテゴリをリスト化してカウント
-            cat_list = [e.get("books", {}).get("category") for e in past_events.to_dict('records') if e.get("books")]
-            cat_list = [c for c in cat_list if c] # Noneや空文字を除外
+            # 1. カテゴリをリスト化（データ型をstrに強制）
+            cat_list = []
+            for e in past_events.to_dict('records'):
+                b = e.get("books")
+                if b and b.get("category"):
+                    cat_list.append(str(b.get("category")))
 
             if cat_list:
-                # 2. 辞書を作ってから DataFrame に変換（これが最もエラーが出にくい）
-                from collections import Counter
-                counts = Counter(cat_list)
-                df_pie = pd.DataFrame({
-                    "category": list(counts.keys()),
-                    "count": list(counts.values())
-                })
+                # 2. DataFrameを作成して集計
+                df_counts = pd.DataFrame(cat_list, columns=["category"])
+                # count列を明示的に作成
+                df_counts["count"] = 1
+                # カテゴリごとに合計
+                df_summary = df_counts.groupby("category").sum().reset_index()
                 
-                # 3. インデックスにカテゴリをセット（Streamlitがラベルとして認識するため）
-                df_pie = df_pie.set_index("category")
+                # 3. Streamlitが認識しやすいように、カテゴリ名をindexにセット
+                df_final = df_summary.set_index("category")
                 
-                # 4. 表示
-                st.pie_chart(df_pie)
+                try:
+                    # 4. 表示（余計な引数を入れない）
+                    st.pie_chart(df_final["count"])
+                except Exception as e:
+                    # 万が一落ちた時のためのバックアップ表示
+                    st.write("📊 グラフ表示に失敗しましたが、集計データはこちらです：")
+                    st.table(df_summary)
             else:
-                st.info("集計できるカテゴリデータがありません。")
+                st.info("集計できるカテゴリデータがありません。")                
                 
 # --- Tab 4: Admin (管理者画面) ---
 with tab4:
