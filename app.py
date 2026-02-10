@@ -508,6 +508,22 @@ with tab4:
                 time.sleep(1)
                 st.rerun()
 
+    st.divider()    
+    # 危険な操作なので、確認のチェックボックスを入れると親切です
+    confirm_reset = st.checkbox("全ユーザーの投票リセットを実行する")
+    
+    if st.button("全ユーザーの投票を完全にリセット", type="primary", use_container_width=True, disabled=not confirm_reset):
+        try:
+            # actionが「投票」のものだけを一括削除（「選出」は残る）
+            supabase.table("votes").delete().eq("action", "投票").execute()
+            
+            st.cache_data.clear()
+            st.success("全ての投票データをリセットしました。")
+            time.sleep(1)
+            st.rerun()
+        except Exception as e:
+            st.error(f"リセットエラー: {e}")
+    
     st.divider()
     if st.button("Logout", use_container_width=True):
         st.session_state.USER = None
