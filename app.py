@@ -1,23 +1,27 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
+from supabase import create_client, Client
 import pandas as pd
 from datetime import datetime
 import time
 
+# --- Supabase 接続 ---
+# secrets.toml に SUPABASE_URL と SUPABASE_KEY を設定してください
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(url, key)
+
 # --- ページ設定 ---
 st.set_page_config(page_title="Book Club", layout="wide")
 
+# CSSは以前のものを継承
 st.markdown("""
     <style>
     .main { background-color: #ffffff; }
     .main .block-container { padding-top: 2rem; max-width: 900px; }
-    [data-testid="column"] { display: flex; flex-direction: column; justify-content: center; padding: 10px 10px !important; }
     .book-row { padding: 15px 0; border-bottom: 1px solid #ececec; width: 100%; margin-bottom: 5px; }
     .title-text { font-weight: 600; color: #1a1a1a; margin-bottom: 4px; line-height: 1.5; }
     .author-text { color: #707070; font-size: 0.85rem; line-height: 1.2; }
-    .stButton button { border-radius: 6px; height: 36px !important; border: 1px solid #e0e0e0; }
-    div[data-testid="stTextInput"] input { border-radius: 6px !important; height: 40px !important; }
-    [data-testid="stSidebar"] { display: none; }
+    .stButton button { border-radius: 6px; height: 36px !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -25,46 +29,49 @@ st.markdown("""
 if "page" not in st.session_state: st.session_state.page = "list"
 if "user_name" not in st.session_state: st.session_state.user_name = ""
 
-conn = st.connection("gsheets", type=GSheetsConnection)
-
 def fetch_data():
-    empty_books = pd.DataFrame(columns=["書籍名", "著者名", "カテゴリ", "URL"])
-    empty_votes = pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"])
     try:
-        df_b = conn.read(worksheet="booklist", ttl=120)
-        if df_b is not None and not df_b.empty:
-            df_b.columns = df_b.columns.str.strip()
-        else:
-            df_b = empty_books
-        df_v = conn.read(worksheet="votes", ttl=0)
-        if df_v is not None and not df_v.empty:
-            df_v.columns = df_v.columns.str.strip()
-        else:
-            df_v = empty_votes
+        # Books取得
+        res_b = supabase.table("books").select("*").execute()
+        df_b = pd.DataFrame(res_b.data)
+        
+        # Votes取得（booksテーブルのtitleもJOIN）
+        res_v = supabase.table("votes").select("*, books(title)").execute()
+        raw_v = res_v.data
+        
+        processed_v = []
+        for v in raw_v:
+            row = v.copy()
+            # book_idに紐づくタイトルを「書籍タイトル」として展開
+            row["書籍タイトル"] = v["books"]["title"] if v.get("books") else "削除された本"
+            processed_v.append(row)
+        
+        df_v = pd.DataFrame(processed_v)
+        if df_v.empty:
+            df_v = pd.DataFrame(columns=["id", "created_at", "action", "book_id", "user_name", "points", "書籍タイトル"])
+            
         return df_b, df_v
     except Exception as e:
-        return empty_books, empty_votes
+        st.error(f"データ連携エラー: {e}")
+        return pd.DataFrame(), pd.DataFrame()
 
-def save_and_refresh(df, message="完了"):
+def save_and_refresh(table, data, message="完了"):
     with st.spinner("更新中..."):
         try:
-            conn.update(worksheet="votes", data=df)
+            supabase.table(table).insert(data).execute()
             st.cache_data.clear()
+            msg = st.success(message)
             time.sleep(1)
-        except:
-            st.error("保存に失敗しました。")
-            return
-    
-    msg_placeholder = st.empty()
-    msg_placeholder.success(message)
-    time.sleep(3)
-    msg_placeholder.empty()
-    st.rerun()
+            msg.empty()
+            st.rerun()
+        except Exception as e:
+            st.error(f"保存エラー: {e}")
 
+# データのロード
 df_books, df_votes = fetch_data()
 
 # --- TOP: NAME ENTRY ---
-st.title("読書会アプリ")
+st.title("読書会アプリ (Supabase UUID版)")
 u_name = st.text_input("お名前を入力してください", value=st.session_state.user_name, placeholder="Your Name")
 st.session_state.user_name = u_name.strip()
 
@@ -73,7 +80,6 @@ if not st.session_state.user_name:
     st.stop()
 
 # --- NAVIGATION ---
-st.write("")
 c_nav1, c_nav2, c_nav3 = st.columns([1, 1, 3])
 with c_nav1:
     if st.button("📖 本を選ぶ", use_container_width=True, type="primary" if st.session_state.page == "list" else "secondary"):
@@ -84,138 +90,97 @@ with c_nav2:
         st.session_state.page = "vote"
         st.rerun()
 with c_nav3:
-    if st.button("🔄 最新の状態に更新", key="sync"):
+    if st.button("🔄 最新の状態に更新"):
         st.cache_data.clear()
         st.rerun()
 
 st.divider()
 
-# 全体で現在選出されている本のリスト
-nominated_titles = df_votes[df_votes["アクション"] == "選出"]["書籍タイトル"].unique().tolist()
-# 現在のユーザーがすでに本を選んでいるかチェック
-has_already_selected = not df_votes[(df_votes["ユーザー名"] == st.session_state.user_name) & (df_votes["アクション"] == "選出")].empty
-
 # --- PAGE 1: BOOK LIST ---
 if st.session_state.page == "list":
     st.header("Book List")
+    
+    # 選出チェック (UUIDは文字列として扱う)
+    my_selection = df_votes[(df_votes["user_name"] == st.session_state.user_name) & (df_votes["action"] == "選出")]
+    nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
 
-    # 自分が選んだ本のリセット機能
-    if has_already_selected:
-        st.success("✅ あなたはすでに本を1冊選出しています。選び直す場合は以下のボタンを押してください。")
-        if st.button("選出した本をキャンセルして選び直す", type="secondary"):
-            my_nominations = df_votes[(df_votes["ユーザー名"] == st.session_state.user_name) & (df_votes["アクション"] == "選出")]
-            titles_to_remove = my_nominations["書籍タイトル"].unique()
-            updated_votes = df_votes[~df_votes["書籍タイトル"].isin(titles_to_remove)]
-            save_and_refresh(updated_votes, "リセット完了。別の本を選べるようになりました。")
+    if not my_selection.empty:
+        st.success("✅ あなたはすでに本を1冊選出しています。")
+        if st.button("選出をキャンセルして選び直す"):
+            target_book_id = str(my_selection.iloc[0]["book_id"])
+            supabase.table("votes").delete().eq("book_id", target_book_id).execute()
+            st.cache_data.clear()
+            st.rerun()
 
     if df_books.empty:
-        st.warning("Bookリストが読み込めませんでした。更新ボタンを押してください。")
+        st.info("書籍データが登録されていません。")
     else:
-        all_categories = df_books["カテゴリ"].dropna().unique().tolist()
-        cats = ["すべて"] + all_categories
-        selected_cat = st.selectbox("カテゴリを絞り込む", cats, label_visibility="collapsed")
-        
-        display_df = df_books if selected_cat == "すべて" else df_books[df_books["カテゴリ"] == selected_cat]
-
-        for cat_name in display_df["カテゴリ"].unique():
-            if pd.isna(cat_name): continue
-            st.markdown(f"<div style='margin: 25px 0 10px 0; color:#333; font-weight:bold;'>📂 {cat_name}</div>", unsafe_allow_html=True)
-            cat_books = display_df[display_df["カテゴリ"] == cat_name]
-            
+        for cat in df_books["category"].dropna().unique():
+            st.subheader(f"📂 {cat}")
+            cat_books = df_books[df_books["category"] == cat]
             for _, row in cat_books.iterrows():
-                title = row.get("書籍名", "無題")
-                author = row.get("著者名", "不明")
-                url = row.get("URL")
+                b_id = str(row["id"])
+                is_nominated = b_id in nominated_ids
                 
-                is_this_book_nominated = title in nominated_titles
-                
-                c1, c2, c3 = st.columns([4, 0.8, 0.8])
+                c1, c2, c3 = st.columns([4, 1, 1])
                 with c1:
-                    st.markdown(f"<div class='title-text'>{title}</div><div class='author-text'>{author}</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='title-text'>{row['title']}</div><div class='author-text'>{row['author']}</div>", unsafe_allow_html=True)
                 with c2:
-                    if pd.notnull(url) and str(url).startswith("http"):
-                        st.link_button("詳細", str(url), use_container_width=True)
+                    if row["url"]: st.link_button("詳細", row["url"], use_container_width=True)
                 with c3:
-                    # ボタンのラベルと非活性化条件
-                    if is_this_book_nominated:
-                        btn_label = "選出済"
-                        btn_disabled = True
-                    elif has_already_selected:
-                        btn_label = "選ぶ"
-                        btn_disabled = True # 自分が他に1冊選んでいたら他の本は押せない
-                    else:
-                        btn_label = "選ぶ"
-                        btn_disabled = False
-
-                    if st.button(btn_label, key=f"sel_{title}", use_container_width=True, disabled=btn_disabled):
-                        # 保存直前の最終チェック
-                        _, latest_votes = fetch_data()
-                        if title in latest_votes[latest_votes["アクション"] == "選出"]["書籍タイトル"].unique():
-                            st.error("この本はタッチの差で選ばれました。")
-                        elif not latest_votes[(latest_votes["ユーザー名"] == st.session_state.user_name) & (latest_votes["アクション"] == "選出")].empty:
-                            st.error("あなたはすでに他の本を選んでいます。")
-                        else:
-                            new_row = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "選出", "書籍タイトル": title, "ユーザー名": st.session_state.user_name, "ポイント": 0}])
-                            save_and_refresh(pd.concat([df_votes, new_row], ignore_index=True))
+                    # 自分が選出済み or すでに誰かが選出済みなら無効
+                    btn_disabled = is_nominated or not my_selection.empty
+                    btn_label = "選出済" if is_nominated else "選ぶ"
+                    if st.button(btn_label, key=f"sel_{b_id}", disabled=btn_disabled, use_container_width=True):
+                        save_and_refresh("votes", {
+                            "action": "選出",
+                            "book_id": b_id,
+                            "user_name": st.session_state.user_name
+                        })
                 st.markdown('<div class="book-row"></div>', unsafe_allow_html=True)
 
-# --- PAGE 2: VOTE & RANKING ---
+# --- PAGE 2: VOTE ---
 else:
-    # (投票画面のコードは前回から変更ありませんが、そのまま維持します)
-    st.subheader("🏆 Ranking")
-    if not df_votes.empty:
-        df_v = df_votes.copy()
-        df_v["ポイント"] = pd.to_numeric(df_v["ポイント"], errors='coerce').fillna(0)
-        vote_data = df_v[df_v["アクション"] == "投票"]
-        summary_list = []
-        current_nominated = df_v[df_v["アクション"] == "選出"]["書籍タイトル"].unique()
-        for title in current_nominated:
-            b_votes = vote_data[vote_data["書籍タイトル"] == title]
-            total_p = b_votes["ポイント"].sum()
-            details = ", ".join([f"{r['ユーザー名']}({int(r['ポイント'])})" for _, r in b_votes.iterrows()])
-            summary_list.append({"書籍タイトル": title, "合計点": total_p, "投票者内訳": details if details else "-"})
-        if summary_list:
-            summary_df = pd.DataFrame(summary_list).sort_values("合計点", ascending=False)
-            st.dataframe(summary_df, hide_index=True, use_container_width=True)
-        else:
-            st.info("現在、選出されている本はありません。")
-    st.divider()
-    my_name = st.session_state.user_name
-    st.subheader(f"🗳️ {my_name} さんの投票")
-    my_v_data = df_votes[(df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票")]
-    voted_titles = {row["書籍タイトル"]: row["ポイント"] for _, row in my_v_data.iterrows()}
-    if st.button("自分の投票をすべてリセット", key="revoke"):
-        save_and_refresh(df_votes[~((df_votes["ユーザー名"] == my_name) & (df_votes["アクション"] == "投票"))], "投票をリセットしました")
-    st.write("")
-    nominated_rows = df_votes[df_votes["アクション"] == "選出"]
+    # 投票画面も同様にUUID(b_id)ベースで処理
+    st.header("🏆 Ranking")
+    nominated_rows = df_votes[df_votes["action"] == "選出"]
+    
     if nominated_rows.empty:
-        st.info("候補がまだ選ばれていません。")
+        st.info("まだ候補が選ばれていません。")
     else:
-        url_dict = pd.Series(df_books.URL.values, index=df_books.書籍名).to_dict()
-        for _, n_row in nominated_rows.iterrows():
-            b_title = n_row["書籍タイトル"]
-            this_p = voted_titles.get(b_title, 0)
-            b_url = url_dict.get(b_title)
-            vc1, vc_url, vc2, vc3 = st.columns([3, 0.8, 0.7, 0.7])
-            with vc1:
-                st.markdown(f"<div class='title-text'>{b_title}</div><div class='author-text'>推薦：{n_row['ユーザー名']}さん</div>", unsafe_allow_html=True)
-            with vc_url:
-                if pd.notnull(b_url) and str(b_url).startswith("http"):
-                    st.link_button("詳細", str(b_url), use_container_width=True)
-            d1 = (1 in voted_titles.values()) or (this_p == 2)
-            with vc2:
-                if st.button(f"+1", key=f"v1_{b_title}", type="primary" if this_p==1 else "secondary", disabled=d1, use_container_width=True):
-                    new_v = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "投票", "書籍タイトル": b_title, "ユーザー名": my_name, "ポイント": 1}])
-                    save_and_refresh(pd.concat([df_votes, new_v], ignore_index=True))
-            d2 = (2 in voted_titles.values()) or (this_p == 1)
-            with vc3:
-                if st.button(f"+2", key=f"v2_{b_title}", type="primary" if this_p==2 else "secondary", disabled=d2, use_container_width=True):
-                    new_v = pd.DataFrame([{"日時": datetime.now().strftime("%m/%d %H:%M"), "アクション": "投票", "書籍タイトル": b_title, "ユーザー名": my_name, "ポイント": 2}])
-                    save_and_refresh(pd.concat([df_votes, new_v], ignore_index=True))
-            st.markdown('<div class="book-row"></div>', unsafe_allow_html=True)
+        vote_only = df_votes[df_votes["action"] == "投票"]
+        summary = []
+        for _, n in nominated_rows.iterrows():
+            b_id = n["book_id"]
+            b_votes = vote_only[vote_only["book_id"] == b_id]
+            summary.append({
+                "タイトル": n["書籍タイトル"],
+                "点数": b_votes["points"].sum(),
+                "内訳": ", ".join([f"{v['user_name']}({v['points']})" for _, v in b_votes.iterrows()]) or "-"
+            })
+        st.table(pd.DataFrame(summary).sort_values("点数", ascending=False))
 
-    with st.expander("データリセット"):
-        if st.button("全得点リセット"):
-            save_and_refresh(df_votes[df_votes["アクション"] == "選出"], "ランキングをリセットしました")
-        if st.button("全データ完全消去", type="primary"):
-            save_and_refresh(pd.DataFrame(columns=["日時", "アクション", "書籍タイトル", "ユーザー名", "ポイント"]), "全てのデータを消去しました")
+        st.divider()
+        st.subheader(f"🗳️ {st.session_state.user_name} さんの投票")
+        
+        my_votes = vote_only[vote_only["user_name"] == st.session_state.user_name]
+        v_points = my_votes["points"].tolist()
+
+        for _, n in nominated_rows.iterrows():
+            b_id = n["book_id"]
+            current_p = my_votes[my_votes["book_id"] == b_id]["points"].sum()
+            
+            vc1, vc2, vc3 = st.columns([3, 1, 1])
+            with vc1:
+                st.write(f"**{n['書籍タイトル']}**")
+            
+            with vc2:
+                # 1点の持ち票があるか、またはこの本に既に投票済みの場合はdisabled
+                d1 = (1 in v_points) or (current_p > 0)
+                if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True):
+                    save_and_refresh("votes", {"action": "投票", "book_id": b_id, "user_name": st.session_state.user_name, "points": 1})
+            with vc3:
+                # 2点の持ち票があるか、またはこの本に既に投票済みの場合はdisabled
+                d2 = (2 in v_points) or (current_p > 0)
+                if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True):
+                    save_and_refresh("votes", {"action": "投票", "book_id": b_id, "user_name": st.session_state.user_name, "points": 2})
