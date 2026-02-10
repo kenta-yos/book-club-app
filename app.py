@@ -130,6 +130,14 @@ if not st.session_state.USER:
 df_books, df_votes = fetch_data()
 df_events = fetch_events()
 
+# --- データの加工 ---
+# 1. すべてのイベント（過去・未来問わず）に登録された本のIDを取得
+used_book_ids = df_events["book_id"].unique().tolist() if not df_events.empty else []
+
+# 2. Books一覧から、イベントで使用済みの本を除外する
+# (Adminで登録した瞬間に、Booksタブの一覧から消えるようになります)
+df_display_books = df_books[~df_books["id"].astype(str).isin([str(x) for x in used_book_ids])]
+
 # 固定ヘッダー（ログインユーザー表示）
 c_head1, c_head_upd = st.columns([0.8, 0.2])
 with c_head1:
@@ -208,11 +216,12 @@ with tab1:
             st.cache_data.clear()
             st.rerun()
     
-    for cat in df_books["category"].dropna().unique():
+    # 表示用のデータ(df_display_books)を使用する
+    categories = df_display_books["category"].dropna().unique() if not df_display_books.empty else []
+    
+    for cat in categories:
         st.markdown(f"### 📂 {cat}")
-        for _, row in df_books[df_books["category"] == cat].iterrows():
-            b_id = str(row["id"])
-            is_nominated = b_id in nominated_ids
+        for _, row in df_display_books[df_display_books["category"] == cat].iterrows():
             
             # --- カード型のデザインコンテナ ---
             with st.container(border=True):
@@ -354,22 +363,40 @@ with tab3:
 with tab4:
     st.subheader("管理者用設定")
     
+    # ✨ 検索窓をフォームの外に出すことで、入力した瞬間に下のselectboxが更新されます
+    search_query = st.text_input("🔍 課題本をタイトルで検索", placeholder="タイトルの一部を入力...")
+    
+    if search_query:
+        filtered_books = df_display_books[df_display_books["title"].str.contains(search_query, case=False, na=False)]
+    else:
+        filtered_books = df_display_books
+
     with st.form("admin_form"):
         st.write("次回の開催情報を登録")
         next_date = st.date_input("読書会の日程")
-        # 現在投票に並んでいる本から選ぶ
-        vote_options = {row["title"]: row["id"] for _, row in df_books.iterrows()}
-        target_book_title = st.selectbox("課題本を選択", options=list(vote_options.keys()))
+        
+        # 選択肢の作成
+        if not filtered_books.empty:
+            book_options = {f"[{row['category']}] {row['title']}": row['id'] for _, row in filtered_books.iterrows()}
+            target_label = st.selectbox("課題本を確定", options=list(book_options.keys()))
+            target_book_id = book_options[target_label]
+        else:
+            st.warning("該当する本がありません。")
+            target_book_id = None
         
         if st.form_submit_button("次回予告を確定する", type="primary"):
-            new_event = {
-                "event_date": str(next_date),
-                "book_id": str(vote_options[target_book_title])
-            }
-            supabase.table("events").insert(new_event).execute()
-            st.success("次回予告を更新しました！")
-            st.rerun()
-    
+            if target_book_id:
+                new_event = {
+                    "event_date": str(next_date),
+                    "book_id": str(target_book_id)
+                }
+                supabase.table("events").insert(new_event).execute()
+                st.success("次回予告を更新しました！Books一覧から非表示になりました。")
+                st.cache_data.clear()
+                st.rerun()
+            else:
+                st.error("本が選択されていません。")
+
     st.divider()
     if st.button("Logout", use_container_width=True):
         st.session_state.USER = None
