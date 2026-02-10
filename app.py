@@ -153,81 +153,49 @@ if st.session_state.page == "list":
                 if st.button(label, key=f"sel_{b_id}", disabled=disabled, use_container_width=True):
                     save_and_refresh("votes", {"action": "選出", "book_id": b_id})
 
-# --- PAGE 2: VOTE ---
+# --- 7. PAGE 2: RANKING & VOTE ---
 else:
-    st.header("🏆 Ranking")
+    # 💡 手動更新ボタンをヘッダー横に配置
+    col_rank, col_refresh = st.columns([0.7, 0.3])
+    with col_rank: st.header("🏆 Ranking")
+    with col_refresh:
+        if st.button("🔄 最新に更新", use_container_width=True):
+            st.cache_data.clear()
+            st.rerun()
+
     nominated_rows = df_votes[df_votes["action"] == "選出"]
     
     if nominated_rows.empty:
         st.info("まだ候補が選ばれていません。")
     else:
         vote_only = df_votes[df_votes["action"] == "投票"]
-        summary = []
-        
-        # ユーザーテーブルからアイコンを取得するための辞書作成
         user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
+        summary = []
 
         for _, n in nominated_rows.iterrows():
             b_id = n["book_id"]
             b_votes = vote_only[vote_only["book_id"] == b_id]
-            
-            # 投票内訳：アイコンと名前を表示
-            details = ", ".join([
-                f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" 
-                for _, v in b_votes.iterrows()
-            ])
-            
-            summary.append({
-                "タイトル": n["書籍タイトル"], # ここは fetch_data で入れた title
-                "合計点": int(b_votes["points"].sum()),
-                "投票内訳": details if details else "-"
-            })
+            # 投票内訳の作成
+            details = ", ".join([f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()])
+            summary.append({"title": n["書籍タイトル"], "score": int(b_votes["points"].sum()), "details": details if details else "-"})
         
-        ranking_df = pd.DataFrame(summary)
-        if not ranking_df.empty:
-            ranking_df = ranking_df.sort_values("合計点", ascending=False)
-            st.dataframe(ranking_df, hide_index=True, use_container_width=True)
-            
-        st.divider()
-        st.subheader("🗳️ 投票")
-        
-        my_votes = vote_only[vote_only["user_name"] == st.session_state.USER]
-        v_points = my_votes["points"].tolist()
+        # 💡 ここで点数順にソート（自動で順位が入れ替わります）
+        summary = sorted(summary, key=lambda x: x['score'], reverse=True)
 
-        # URL参照用の辞書作成 (詳細ボタン用)
-        url_map = dict(zip(df_books['id'].astype(str), df_books['url']))
+        # 💡 スマホ最適化：表形式をやめて st.columns で並べる
+        h1, h2, h3 = st.columns([1.2, 0.4, 1.4])
+        with h1: st.caption("タイトル")
+        with h2: st.caption("点数")
+        with h3: st.caption("投票内訳")
+        st.markdown('<hr style="margin: 0.5rem 0;">', unsafe_allow_html=True)
 
-        for _, n in nominated_rows.iterrows():
-            # n["book_id"] を確実に文字列のIDとして取得
-            b_id = str(n["book_id"])
-            current_p = int(my_votes[my_votes["book_id"] == b_id]["points"].sum())
-            b_url = url_map.get(b_id)
+        for item in summary:
+            c1, c2, c3 = st.columns([1.2, 0.4, 1.4])
+            with c1: st.markdown(f"**{item['title']}**") # タイトル（自動改行）
+            with c2: st.markdown(f"### {item['score']}") # 点数
+            with c3: st.caption(item['details'])        # 内訳
+            st.markdown('<div style="border-bottom: 1px solid #eee; margin: 5px 0;"></div>', unsafe_allow_html=True)
             
-            # レイアウト調整：タイトル, 詳細ボタン, 1点, 2点
-            vc1, vc_url, vc2, vc3 = st.columns([3, 0.8, 0.7, 0.7])
-            
-            with vc1:
-                st.markdown(f"""
-                    <div class='title-text'>{n['書籍タイトル']}</div>
-                    <div style='color: #707070; font-size: 0.8rem;'>{n['著者名']}</div>
-                """, unsafe_allow_html=True)
-            
-            with vc_url:
-                if pd.notnull(b_url) and str(b_url).startswith("http"):
-                    st.link_button("詳細", b_url, use_container_width=True)
-            
-            with vc2:
-                d1 = (1 in v_points) or (current_p > 0)
-                if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True):
-                    save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 1})
-            with vc3:
-                d2 = (2 in v_points) or (current_p > 0)
-                if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True):
-                    save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2})
-            
-            # 区切り線
-            st.markdown('<div style="border-bottom: 1px solid #eee; margin-bottom: 10px;"></div>', unsafe_allow_html=True)
-
         st.divider()
         st.subheader(f"🗳️ {st.session_state.U_ICON} {st.session_state.USER} さんの投票")
         
