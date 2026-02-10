@@ -363,45 +363,52 @@ with tab3:
                 st.write(f"📅 {ev['event_date']}")
                 st.markdown(f"**{b.get('title')}** / {b.get('author')} ({b.get('category')})")
         
-        # --- 魅せる棒グラフ (Plotly版) ---
+        # --- 究極の棒グラフ (Altair版：数字を外側に表示) ---
         st.divider()
         st.subheader("📊 カテゴリ別・読破数ランキング")
         
         if not past_events.empty:
-            # 1. カテゴリをリスト化してカウント
+            # 1. データ集計
             cat_list = [str(e.get("books", {}).get("category")) for e in past_events.to_dict('records') if e.get("books")]
             cat_list = [c for c in cat_list if c != 'None' and c != '']
 
             if cat_list:
-                # 2. データを集計してソート
-                df_counts = pd.DataFrame(cat_list, columns=["category"]).value_counts().reset_index()
+                df_counts = pd.Series(cat_list).value_counts().reset_index()
                 df_counts.columns = ["カテゴリ", "冊数"]
-                df_counts = df_counts.sort_values("冊数", ascending=True) # 横棒グラフ用
 
-                # 3. Plotlyでスタイリッシュな横棒グラフを作成
-                fig = px.bar(
-                    df_counts, 
-                    x="冊数", 
-                    y="カテゴリ", 
-                    orientation='h', # 横棒にすることでラベルが読みやすくなる
-                    text="冊数",    # 棒の上に数字を表示
-                    color="冊数",    # 冊数に応じて色をグラデーションに
-                    color_continuous_scale="Viridis", # かっこいいグラデーション
+                # 2. Altairでグラフを作成
+                import altair as alt
+
+                # 棒の部分
+                bars = alt.Chart(df_counts).mark_bar(
+                    cornerRadiusTopRight=5,
+                    cornerRadiusBottomRight=5
+                ).encode(
+                    x=alt.X("冊数:Q", title=None, axis=None), # 冊数の軸を消してスッキリ
+                    y=alt.Y("カテゴリ:N", title=None, sort='-x'), # 多い順に並べる
+                    color=alt.Color("カテゴリ:N", legend=None, scale=alt.Scale(scheme='viridis')) # お洒落な配色
                 )
 
-                # 4. デザイン調整
-                fig.update_layout(
-                    showlegend=False,
-                    height=300 + (len(df_counts) * 30), # データの量に合わせて高さを自動調整
-                    margin=dict(l=20, r=20, t=20, b=20),
-                    xaxis=dict(showgrid=False), # グリッドを消してスッキリ
-                    yaxis=dict(showgrid=False),
-                    paper_bgcolor='rgba(0,0,0,0)', # 背景を透明に
-                    plot_bgcolor='rgba(0,0,0,0)',
+                # 数字（ラベル）の部分
+                text = bars.mark_text(
+                    align='left',
+                    baseline='middle',
+                    dx=5,  # 棒の端から5ピクセル外側にずらす
+                    fontSize=14,
+                    fontWeight='bold'
+                ).encode(
+                    text='冊数:Q'
                 )
-                
-                # 5. 表示
-                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+                # 棒と数字を重ねる
+                chart = (bars + text).properties(
+                    height=alt.Step(40)  # 棒の太さを調整
+                ).configure_view(
+                    strokeOpacity=0      # 外枠を消す
+                )
+
+                # 表示
+                st.altair_chart(chart, use_container_width=True)
             else:
                 st.info("集計できるカテゴリデータがありません。")
                 
