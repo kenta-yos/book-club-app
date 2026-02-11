@@ -31,6 +31,17 @@ st.markdown("""
     /* 既存のスタイル */
     [data-testid="stHorizontalBlock"] { justify-content: center !important; }
     .stButton button { border-radius: 8px; }
+
+    /* タイトルリンクのホバー設定 */
+    .book-title-link {
+        text-decoration: none;
+        transition: opacity 0.2s;
+    }
+    .book-title-link:hover {
+        text-decoration: underline !important;
+        opacity: 0.7;
+    }
+    
     </style>
     """, unsafe_allow_html=True)
 
@@ -256,32 +267,45 @@ with tab1:
             for _, row in category_books.iterrows():
                 b_id = str(row["id"])
                 is_nominated = b_id in nominated_ids
+                b_url = row["url"] if pd.notnull(row["url"]) and str(row["url"]).startswith("http") else None
                 
                 with st.container(border=True):
-                    st.markdown(f"""
-                        <div style='line-height: 1.4; margin-bottom: 10px;'>
-                            <div style='font-size: 1.1rem; font-weight: bold; color: #333;'>{row['title']}</div>
-                            <div style='color: #666; font-size: 0.85rem;'>{row['author']}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                        
-                    col_b1, col_b2 = st.columns([1, 1])
-                    with col_b1:
-                        if row["url"]: 
-                            st.link_button("🔗 詳細", row["url"], use_container_width=True)
-                        else:
-                            st.button("詳細なし", disabled=True, use_container_width=True, key=f"no_url_{b_id}")
+                    # --- A. タイトル・著者エリア ---
+                    if b_url:
+                        # リンクがある場合は青色（#1E88E5）
+                        st.markdown(f"""
+                            <div style="margin-bottom: 12px;">
+                                <a href="{b_url}" target="_blank" class="book-title-link">
+                                    <div style="font-size: 1.15rem; font-weight: bold; color: #1E88E5; line-height: 1.4;">
+                                        {row['title']}
+                                    </div>
+                                </a>
+                                <div style="color: #888; font-size: 0.8rem; margin-top: 4px;">{row['author']}</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        # リンクがない場合は通常の黒色
+                        st.markdown(f"""
+                            <div style="margin-bottom: 12px;">
+                                <div style="font-size: 1.15rem; font-weight: bold; color: #333; line-height: 1.4;">
+                                    {row['title']}
+                                </div>
+                                <div style="color: #888; font-size: 0.8rem; margin-top: 4px;">{row['author']}</div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # --- B. 選出ボタンエリア ---
+                    # 詳細ボタンを消したので、ボタン1つを大きく配置
+                    if not my_selection.empty and b_id == str(my_selection.iloc[0]["book_id"]):
+                        st.button("✅ これを選んだ", disabled=True, use_container_width=True, key=f"my_{b_id}")
+                    elif is_nominated:
+                        st.button("選出済", disabled=True, use_container_width=True, key=f"nom_{b_id}")
+                    else:
+                        is_disabled = not my_selection.empty
+                        btn_label = "これを選ぶ" if not is_disabled else "既に選出済みです"
+                        if st.button(btn_label, key=f"sel_{b_id}", disabled=is_disabled, use_container_width=True, type="primary"):
+                            save_and_refresh("votes", {"action": "選出", "book_id": b_id}, f"「{row['title']}」を選出したよ👍")
                             
-                    with col_b2:
-                        if not my_selection.empty and b_id == str(my_selection.iloc[0]["book_id"]):
-                            st.button("✅ これを選んだ", disabled=True, use_container_width=True, key=f"my_{b_id}")
-                        elif is_nominated:
-                            st.button("選出済", disabled=True, use_container_width=True, key=f"nom_{b_id}")
-                        else:
-                            is_disabled = not my_selection.empty
-                            if st.button("これを選ぶ", key=f"sel_{b_id}", disabled=is_disabled, use_container_width=True, type="primary"):
-                                save_and_refresh("votes", {"action": "選出", "book_id": b_id}, f"「{row['title']}」を選出したよ👍")
-
 # --- 7. PAGE 2: RANKING & VOTE ---
 with tab2:
     st.header("🏆 Ranking")
