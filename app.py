@@ -124,7 +124,7 @@ if not st.session_state.USER:
                         st.session_state.U_ICON = row['icon']
                         st.query_params["user"] = row['user_name']
                         st.rerun()
-        st.stop()
+    st.stop()
 
 # --- メインコンテンツ部分 ---
 df_books, df_votes = fetch_data()
