@@ -328,26 +328,25 @@ with tab1:
 # --- 7. PAGE 2: RANKING & VOTE ---
 with tab2:
     st.header("🏆 Ranking")
+    # 選出された本のリスト
     nominated_rows = df_active_votes[df_active_votes["action"] == "選出"]
 
     if nominated_rows.empty:
         st.info("まだ候補が選ばれていません。")
     else:
-        # --- ランキング表 ---
+        # 投票データとユーザーアイコンの準備
         vote_only = df_active_votes[df_active_votes["action"] == "投票"]
         user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
         
-        summary = []
-        
-        # 1. まず最高得点を計算する
+        # 1. 最高得点を計算
         max_p = 0
         for _, n in nominated_rows.iterrows():
             p = int(vote_only[vote_only["book_id"] == n["book_id"]]["points"].sum())
             if p > max_p:
                 max_p = p
 
-        # 2. HTMLのヘッダー部分
-        html = """
+        # 2. HTMLを組み立てる（変数名を table_html に統一）
+        table_html = """
         <style>
             .rk-table { width: 100%; border-collapse: collapse; }
             .rk-table th, .rk-table td { border-bottom: 1px solid #eee; padding: 10px 5px; text-align: left; }
@@ -363,41 +362,39 @@ with tab2:
             <tbody>
         """
 
-        # 3. 各行を生成して連結する
+        # 3. 本の数だけ行を追加
         for _, n in nominated_rows.iterrows():
             b_id = n["book_id"]
             b_votes = vote_only[vote_only["book_id"] == b_id]
             pts = int(b_votes["points"].sum())
             
-            # 最高得点（かつ0点より大きい）なら目立たせる
+            # 1位判定
             is_top = (pts == max_p and max_p > 0)
-            row_style = 'class="top-row"' if is_top else ''
+            row_class = 'class="top-row"' if is_top else ''
             badge = '<span class="top-badge">TOP</span>' if is_top else ''
 
-            # 内訳チップの生成
-            t_html = ""
+            # 内訳チップ作成
+            t_list = []
             for _, v in b_votes.iterrows():
                 icon = user_icon_map.get(v['user_name'], '👤')
-                t_html += f'<span style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap; display:inline-block; margin:2px;">{icon}{v["user_name"]}({int(v["points"])})</span>'
-            if not t_html: t_html = "-"
+                t_list.append(f'<span style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap; display:inline-block; margin:2px;">{icon}{v["user_name"]}({int(v["points"])})</span>')
+            
+            inner_tags = "".join(t_list) if t_list else "-"
 
-            # 行の追加
-            html += f"""
-                <tr {row_style}>
+            table_html += f"""
+                <tr {row_class}>
                     <td style="font-weight:bold; color:#333; font-size:0.9rem;">{badge}{n['書籍タイトル']}</td>
                     <td style="color:#1E88E5; font-weight:bold; font-size:1.1rem;">{pts}</td>
-                    <td><div class="tags-inline">{t_html}</div></td>
+                    <td><div class="tags-inline">{inner_tags}</div></td>
                 </tr>
             """
 
-        html += "</tbody></table>"
+        table_html += "</tbody></table>"
         
-        # 4. ここで一気に出力
-        st.markdown(html, unsafe_allow_html=True)
+        # 4. 表示
+        st.markdown(table_html, unsafe_allow_html=True)
 
-                
-        # 💡 最後にまとめて st.markdown に流し込む
-        st.markdown(table_html, unsafe_allow_html=True)            
+        # 以降は元の投票ボタン処理を続けてください
         #     details = ", ".join([f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()])
         #     summary.append({"タイトル": n["書籍タイトル"], "点数": int(b_votes["points"].sum()), "内訳": details if details else "-"})
         
