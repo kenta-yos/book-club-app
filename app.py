@@ -335,6 +335,7 @@ with tab2:
     else:
         vote_only = df_active_votes[df_active_votes["action"] == "投票"]
         user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
+        url_map = dict(zip(df_books['id'].astype(str), df_books['url']))
         
         # 最高得点の計算
         max_p = 0
@@ -344,41 +345,36 @@ with tab2:
             if p > max_p: max_p = p
             all_stats.append(p)
 
-        # 全行をひとつの文字列にまとめて描画（行間短縮のため）
+        # --- 1. ランキング表示（超コンパクト版） ---
         ranking_html = ""
         for i, (_, n) in enumerate(nominated_rows.iterrows()):
             pts = all_stats[i]
             is_top = (pts == max_p and max_p > 0)
             
-            # 内訳の作成（アイコン+点数）
             b_votes = vote_only[vote_only["book_id"] == str(n["book_id"])]
-            details = " ".join([f"{user_icon_map.get(v['user_name'], '👤')}{int(v['points'])}" for _, v in b_votes.iterrows()])
+            # 1位以外はアイコンを出さない設定
+            details = " ".join([f"{user_icon_map.get(v['user_name'], '👤') if is_top else ''}{int(v['points'])}" for _, v in b_votes.iterrows()])
             
-            # 1位だけ王冠、他はなし
             prefix = "👑 " if is_top else ""
-            # ポイントのフォントサイズを大きくし、色を調整
             pts_color = "#FBC02D" if is_top else "#1E88E5"
             
-            # 1行分のテキストを組み立て（<br>で改行を制御して行間を詰める）
             ranking_html += f"""
-            <div style="margin-bottom: 8px; line-height: 1.2;">
+            <div style="margin-bottom: 4px; line-height: 1.2;">
                 {prefix}<b>{n['書籍タイトル']}</b> 
-                <span style="font-size: 1.2rem; font-weight: bold; color: {pts_color}; margin-left: 8px;">{pts}</span>
-                <span style="font-size: 0.7rem; color: #666;">pts</span>
-                <span style="font-size: 0.8rem; color: #888; margin-left: 10px;">{details}</span>
+                <span style="font-size: 1.15rem; font-weight: bold; color: {pts_color}; margin-left: 6px;">{pts}</span>
+                <span style="font-size: 0.7rem; color: #888;">pts</span>
+                <span style="font-size: 0.8rem; color: #999; margin-left: 8px;">{details}</span>
             </div>
             <hr style="margin: 4px 0; border: 0; border-top: 1px solid #eee;">
             """
+        st.markdown(ranking_html, unsafe_allow_html=True)
 
-        st.markdown(ranking_html, unsafe_allow_html=True)                
-        
+        # --- 2. 投票セクション ---
         st.divider()
         st.subheader("🗳️ 投票")
-        
         my_votes = vote_only[vote_only["user_name"] == st.session_state.USER]
         v_points = my_votes["points"].tolist()
-        url_map = dict(zip(df_books['id'].astype(str), df_books['url']))
-    
+        
         for _, n in nominated_rows.iterrows():
             b_id = str(n["book_id"])
             current_p = int(my_votes[my_votes["book_id"] == b_id]["points"].sum())
@@ -387,64 +383,45 @@ with tab2:
             n_icon = user_icon_map.get(n_user, "👤")
             is_my_nomination = (n_user == st.session_state.USER)
             
-            # --- カード型のデザインコンテナ ---
-            with st.container(border=True): # 枠線で囲んでカードっぽくする
-                # 1. タイトルと推薦者
+            # 本のタイトルをリンク化（青色・下線なし）
+            if pd.notnull(b_url) and str(b_url).startswith("http"):
+                link_style = "color: #1E88E5; text-decoration: none; font-weight: bold;"
+                title_html = f'<a href="{b_url}" target="_blank" style="{link_style}">{n["書籍タイトル"]}</a>'
+            else:
+                title_html = f'<b>{n["書籍タイトル"]}</b>'
+
+            with st.expander(f"投票: {n['書籍タイトル']}"):
                 st.markdown(f"""
-                    <div style='line-height: 1.4; margin-bottom: 10px;'>
-                        <div style='font-size: 1.1rem; font-weight: bold; color: #333;'>{n['書籍タイトル']}</div>
-                        <div style='color: #666; font-size: 0.85rem; margin-bottom: 8px;'>{n['著者名']}</div>
-                        <span style='background: #e1f5fe; border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; color: #01579b; font-weight: bold;'>
-                            推薦: {n_icon} {n_user}
-                        </span>
+                    <div style="margin-bottom: 10px; line-height: 1.4;">
+                        {title_html}<br>
+                        <span style="font-size: 0.8rem; color: #666;">{n['著者名']} / 推薦: {n_icon} {n_user}</span>
                     </div>
                 """, unsafe_allow_html=True)
-    
-                # 2. ボタン配置（スマホでは自然に並ぶように設定）
-                # 詳細ボタンがある場合だけ表示
-                col_btn1, col_btn2 = st.columns([1, 2])
-                with col_btn1:
-                    if pd.notnull(b_url) and str(b_url).startswith("http"):
-                        st.link_button("🔗 詳細を見る", b_url, use_container_width=True)
-                    else:
-                        st.button("詳細なし", disabled=True, use_container_width=True, key=f"no_{b_id}")
+                
+                v_col1, v_col2, v_col3 = st.columns([1, 1, 1])
+                with v_col1:
+                    d1 = is_my_nomination or (1 in v_points) or (current_p > 0)
+                    if st.button("+1", key=f"v1_{b_id}", disabled=d1, use_container_width=True):
+                        save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 1}, "1点投票しました")
+                with v_col2:
+                    d2 = is_my_nomination or (2 in v_points) or (current_p > 0)
+                    if st.button("+2", key=f"v2_{b_id}", disabled=d2, use_container_width=True, type="primary"):
+                        save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2}, "2点投票しました")
+                with v_col3:
+                    if current_p > 0:
+                        if st.button("消去", key=f"del_{b_id}", use_container_width=True):
+                            supabase.table("votes").delete().eq("user_name", st.session_state.USER).eq("book_id", b_id).eq("action", "投票").execute()
+                            st.cache_data.clear()
+                            st.rerun()
 
-                with col_btn2:
-                    # 投票ボタンを横に並べる
-                    v_col1, v_col2, v_col3 = st.columns([1, 1, 1]) # 3列に増やします
-                    
-                    with v_col1:
-                        d1 = is_my_nomination or (1 in v_points) or (current_p > 0)
-                        if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True):
-                            save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 1}, "1点投票しました")
-                    
-                    with v_col2:
-                        d2 = is_my_nomination or (2 in v_points) or (current_p > 0)
-                        if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True, type="primary"):
-                            save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2}, "2点投票しました")
-                    
-                    with v_col3:
-                        # 💡 自分がこの本に投票している（点数が0より大きい）場合のみ、ボタンを描画する
-                        has_voted_this_book = (current_p > 0)
-                        
-                        if has_voted_this_book:
-                            if st.button("投票取り消し", key=f"del_{b_id}", use_container_width=True, help="この本への投票を取り消す"):
-                                # 自分の、この本の、アクションが「投票」のデータだけを消す
-                                supabase.table("votes").delete().eq("user_name", st.session_state.USER).eq("book_id", b_id).eq("action", "投票").execute()
-                                st.cache_data.clear()
-                                st.toast(f"「{n['書籍タイトル']}」への投票を取り消しました", icon="🧹")
-                                st.rerun()
-                        else:
-                            # 投票していない本には何も表示しない（または空のスペースを作る）
-                            st.write("")
-                                            
+        # --- 3. 全リセットボタン ---
         st.divider()
         st.subheader(f"🗳️ {st.session_state.USER} さんの投票")
-        if st.button("自分の投票をすべてリセット", type="secondary", use_container_width=True):
+        if st.button("自分の投票をすべてリセット", type="secondary", key="reset_all_my_votes", use_container_width=True):
             supabase.table("votes").delete().eq("user_name", st.session_state.USER).eq("action", "投票").execute()
             st.cache_data.clear()
             st.rerun()
-
+            
 # --- Tab 3: History (これまでの読書会) ---
 with tab3:
     try:
