@@ -485,8 +485,17 @@ with tab3:
                 cornerRadiusBottomRight=5
             ).encode(
                 x=alt.X("冊数:Q", title=None, axis=None),
-                # 💡 labelLimit を 0（無制限）に設定し、折り返しを許可する設定を追加
-                y=alt.Y("カテゴリ:N", title=None, sort='-x', axis=alt.Axis(labelLimit=0)),
+                y=alt.Y(
+                    "カテゴリ:N", 
+                    title=None, 
+                    sort='-x', 
+                    axis=alt.Axis(
+                        labelLimit=80,      # 💡 ここで1行の幅を指定（超えると折り返し）
+                        labelLineHeight=14, # 💡 行間の高さを指定
+                        labelFontSize=12,
+                        labelPadding=10
+                    )
+                ),
                 color=alt.Color("カテゴリ:N", legend=None, scale=alt.Scale(scheme='viridis'))
             )
 
@@ -495,12 +504,8 @@ with tab3:
                 fontSize=14, fontWeight='bold'
             ).encode(text='冊数:Q')
 
-            # 💡 グラフ全体の描画設定を調整
             chart = (bars + text).properties(
-                height=alt.Step(40)
-            ).configure_axis(
-                labelFontSize=12,  # ラベルを少し読みやすく
-                labelPadding=10    # バーと文字の間の余白
+                height=alt.Step(50) # 💡 折り返しを考慮して1件あたりの高さを少し広げました
             ).configure_view(
                 strokeOpacity=0
             )
