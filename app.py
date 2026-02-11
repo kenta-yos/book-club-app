@@ -363,7 +363,7 @@ with tab2:
                 {prefix}<b>{n['書籍タイトル']}</b> 
                 <span style="font-size: 1.5rem; font-weight: bold; color: {pts_color}; margin-left: 6px;">{pts}</span>
                 <span style="font-size: 0.8rem; color: #555;">pts</span>
-                <span style="font-size: 0.8rem; color: #555; margin-left: 8px;">...{details}</span>
+                <span style="font-size: 1.0rem; color: #555; margin-left: 8px;">...{details}</span>
             </div>
             <hr style="margin: 4px 0; border: 0; border-top: 1px solid #eee;">
             """
