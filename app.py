@@ -32,14 +32,10 @@ st.markdown("""
     [data-testid="stHorizontalBlock"] { justify-content: center !important; }
     .stButton button { border-radius: 8px; }
 
-    /* タイトルリンクのホバー設定 */
+    /* タイトルリンク設定 */
     .book-title-link {
         text-decoration: none;
         transition: opacity 0.2s;
-    }
-    .book-title-link:hover {
-        text-decoration: underline !important;
-        opacity: 0.7;
     }
     
     </style>
