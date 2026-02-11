@@ -328,6 +328,7 @@ with tab1:
 # --- 7. PAGE 2: RANKING & VOTE ---
 with tab2:
     st.header("🏆 Ranking")
+    # 選出された本をそのままの順（Booksでの並び順）で取得
     nominated_rows = df_active_votes[df_active_votes["action"] == "選出"]
 
     if nominated_rows.empty:
@@ -336,58 +337,44 @@ with tab2:
         vote_only = df_active_votes[df_active_votes["action"] == "投票"]
         user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
         
-        summary_list = []
-        current_max_p = 0
-        
+        # --- 1. まず最高得点を計算する ---
+        max_p = 0
+        book_stats = []
         for _, n in nominated_rows.iterrows():
-            b_id = str(n["book_id"])
-            b_votes = vote_only[vote_only["book_id"] == b_id]
-            pts = int(b_votes["points"].sum())
-            if pts > current_max_p:
-                current_max_p = pts
+            pts = int(vote_only[vote_only["book_id"] == str(n["book_id"])]["points"].sum())
+            if pts > max_p:
+                max_p = pts
+            book_stats.append(pts)
 
-            t_html = ""
-            for _, v in b_votes.iterrows():
-                icon = user_icon_map.get(v['user_name'], '👤')
-                t_html += f'<span style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap; display:inline-block; margin:2px;">{icon}{v["user_name"]}({int(v["points"])})</span>'
+        # --- 2. リストを表示（ソートなし） ---
+        for i, (_, n) in enumerate(nominated_rows.iterrows()):
+            current_pts = book_stats[i]
+            # 最高得点（かつ0点より大きい）なら目立たせる
+            is_top = (current_pts == max_p and max_p > 0)
             
-            summary_list.append({
-                "title": n["書籍タイトル"],
-                "points": pts,
-                "tags": t_html if t_html else "-"
-            })
-        
-        ranking_data = sorted(summary_list, key=lambda x: x['points'], reverse=True)
-
-        # CSSを適用
-        st.markdown("""
-        <style>
-            .rk-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-            .rk-table th, .rk-table td { border-bottom: 1px solid #eee; padding: 10px 5px; text-align: left; }
-            .top-row { background-color: #fff9c4 !important; }
-            .top-badge { background: #fbc02d; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; }
-            .tags-inline { display: flex; flex-wrap: wrap; gap: 2px; }
-        </style>
-        """, unsafe_allow_html=True)
-
-        # テーブル作成（ここが重要：一つの変数にまとめ切る）
-        table_body = ""
-        for item in ranking_data:
-            is_top = (item['points'] == current_max_p and current_max_p > 0)
-            row_attr = 'class="top-row"' if is_top else ''
-            badge = '<span class="top-badge">TOP</span>' if is_top else ''
-            
-            table_body += f"""
-                <tr {row_attr}>
-                    <td style="font-weight:bold; color:#333; font-size:0.9rem;">{badge}{item['title']}</td>
-                    <td style="color:#1E88E5; font-weight:bold; font-size:1.1rem;">{item['points']}</td>
-                    <td><div class="tags-inline">{item['tags']}</div></td>
-                </tr>
-            """
-
-        # 最後に一回だけ markdown で出す
-        final_table_html = f'<table class="rk-table"><thead><tr><th>タイトル</th><th>点</th><th>内訳</th></tr></thead><tbody>{table_body}</tbody></table>'
-        st.markdown(final_table_html, unsafe_allow_html=True)
+            # 枠付きコンテナ。最高得点なら色を変える工夫
+            with st.container(border=True):
+                col_info, col_num, col_tags = st.columns([0.4, 0.1, 0.5])
+                
+                with col_info:
+                    if is_top:
+                        st.markdown("🥇 **TOP**")
+                    st.markdown(f"**{n['書籍タイトル']}**")
+                    st.caption(n['著者名'])
+                
+                with col_num:
+                    # 点数を強調表示
+                    st.markdown(f"<h3 style='color: {'#FBC02D' if is_top else '#1E88E5'}; margin:0;'>{current_pts}</h3>", unsafe_allow_html=True)
+                    st.caption("pts")
+                
+                with col_tags:
+                    # 内訳
+                    b_votes = vote_only[vote_only["book_id"] == str(n["book_id"])]
+                    if not b_votes.empty:
+                        tags = [f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()]
+                        st.write(" / ".join(tags))
+                    else:
+                        st.write("-")
 
         st.divider()
         st.subheader("🗳️ 投票")
