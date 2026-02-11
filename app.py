@@ -341,23 +341,20 @@ with tab2:
         summary = []
         max_p = 0
         
-        # 選出された本をループして集計
+        # 1. すべての選出本をループして集計
         for _, n in nominated_rows.iterrows():
             b_id = n["book_id"]
             b_votes = vote_only[vote_only["book_id"] == b_id]
             pts = int(b_votes["points"].sum())
             
-            # 最高得点の更新（TOPバッジ用）
             if pts > max_p:
                 max_p = pts
 
-            # 内訳チップの作成
             t_list = []
             for _, v in b_votes.iterrows():
                 icon = user_icon_map.get(v['user_name'], '👤')
                 t_list.append(f'<span style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap; display:inline-block; margin:2px;">{icon}{v["user_name"]}({int(v["points"])})</span>')
             
-            # ここで summary リストに1件ずつ追加（ここがループ内にあることが重要です）
             summary.append({
                 "title": n["書籍タイトル"],
                 "points": pts,
@@ -367,8 +364,9 @@ with tab2:
         # 点数順にソート
         ranking_data = sorted(summary, key=lambda x: x['points'], reverse=True)
 
-        # --- HTMLの組み立て ---
-        table_html = """
+        # 2. HTMLの組み立て（CSSとテーブル本体を分ける）
+        # スタイル定義（f-stringを使わないことで波括弧の衝突を防ぐ）
+        st.markdown("""
         <style>
             .rk-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
             .rk-table th, .rk-table td { border-bottom: 1px solid #eee; padding: 10px 5px; text-align: left; }
@@ -377,30 +375,29 @@ with tab2:
             .top-badge { background: #fbc02d; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; }
             .tags-inline { display: flex; flex-wrap: wrap; gap: 2px; }
         </style>
-        <table class="rk-table">
-            <thead>
-                <tr><th>タイトル</th><th style="width:30px;">点</th><th>内訳</th></tr>
-            </thead>
-            <tbody>
-        """
+        """, unsafe_allow_html=True)
+
+        # テーブル本体の組み立て
+        table_html = '<table class="rk-table"><thead><tr><th>タイトル</th><th style="width:30px;">点</th><th>内訳</th></tr></thead><tbody>'
 
         for item in ranking_data:
-            # 1位かつ1点以上の場合にTOPバッジを表示
             is_top = (item['points'] == max_p and max_p > 0)
             row_class = 'class="top-row"' if is_top else ''
             badge = '<span class="top-badge">TOP</span>' if is_top else ''
             
-            table_html += f"""
+            # 各行を f-string で作成
+            row_html = f"""
                 <tr {row_class}>
                     <td style="font-weight:bold; color:#333; font-size:0.9rem;">{badge}{item['title']}</td>
                     <td style="color:#1E88E5; font-weight:bold; font-size:1.1rem;">{item['points']}</td>
                     <td><div class="tags-inline">{item['tags']}</div></td>
                 </tr>
             """
+            table_html += row_html
 
         table_html += "</tbody></table>"
         
-        # HTMLを一括表示
+        # 3. 表示
         st.markdown(table_html, unsafe_allow_html=True)
         
         st.divider()
