@@ -334,66 +334,45 @@ with tab2:
     if nominated_rows.empty:
         st.info("まだ候補が選ばれていません。")
     else:
-        # 投票データとユーザーアイコンの準備
+        # --- ランキング集計ロジック ---
         vote_only = df_active_votes[df_active_votes["action"] == "投票"]
         user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
         
-        # 1. 最高得点を計算
-        max_p = 0
-        for _, n in nominated_rows.iterrows():
-            p = int(vote_only[vote_only["book_id"] == n["book_id"]]["points"].sum())
-            if p > max_p:
-                max_p = p
-
-        # 2. HTMLを組み立てる（変数名を table_html に統一）
-        table_html = """
-        <style>
-            .rk-table { width: 100%; border-collapse: collapse; }
-            .rk-table th, .rk-table td { border-bottom: 1px solid #eee; padding: 10px 5px; text-align: left; }
-            .rk-table th { color: #888; font-size: 0.75rem; font-weight: normal; }
-            .top-row { background-color: #fff9c4 !important; }
-            .top-badge { background: #fbc02d; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; }
-            .tags-inline { display: flex; flex-wrap: wrap; gap: 2px; }
-        </style>
-        <table class="rk-table">
-            <thead>
-                <tr><th>タイトル</th><th style="width:30px;">点</th><th>内訳</th></tr>
-            </thead>
-            <tbody>
-        """
-
-        # 3. 本の数だけ行を追加
+        summary = []
         for _, n in nominated_rows.iterrows():
             b_id = n["book_id"]
             b_votes = vote_only[vote_only["book_id"] == b_id]
-            pts = int(b_votes["points"].sum())
             
-            # 1位判定
-            is_top = (pts == max_p and max_p > 0)
-            row_class = 'class="top-row"' if is_top else ''
-            badge = '<span class="top-badge">TOP</span>' if is_top else ''
-
-            # 内訳チップ作成
-            t_list = []
+            # 内訳をチップ形式のHTMLに変換
+            tags_html = ""
             for _, v in b_votes.iterrows():
                 icon = user_icon_map.get(v['user_name'], '👤')
-                t_list.append(f'<span style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap; display:inline-block; margin:2px;">{icon}{v["user_name"]}({int(v["points"])})</span>')
+                tags_html += f'<span class="vote-tag" style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap;">{icon}{v["user_name"]}({int(v["points"])})</span>'
             
-            inner_tags = "".join(t_list) if t_list else "-"
+            summary.append({
+                "title": n["書籍タイトル"],
+                "points": int(b_votes["points"].sum()),
+                "tags": tags_html if tags_html else "-"
+            })
+        
+        # 点数順にソート（動的に順番が変わります）
+        ranking_data = sorted(summary, key=lambda x: x['points'], reverse=True)
 
+        # --- 表のHTML組み立て ---
+        table_html = '<table class="history-table"><tr><th>タイトル</th><th style="width:50px;">点</th><th>内訳</th></tr>'
+        for item in ranking_data:
             table_html += f"""
-                <tr {row_class}>
-                    <td style="font-weight:bold; color:#333; font-size:0.9rem;">{badge}{n['書籍タイトル']}</td>
-                    <td style="color:#1E88E5; font-weight:bold; font-size:1.1rem;">{pts}</td>
-                    <td><div class="tags-inline">{inner_tags}</div></td>
+                <tr>
+                    <td style="font-weight:bold; color:#333;">{item['title']}</td>
+                    <td style="color:#1E88E5; font-weight:bold; font-size:1.1rem;">{item['points']}</td>
+                    <td><div class="tags-cell">{item['tags']}</div></td>
                 </tr>
             """
-
-        table_html += "</tbody></table>"
+        table_html += '</table>'
         
-        # 4. 表示
+        # 表示
         st.markdown(table_html, unsafe_allow_html=True)
-
+        
         # 以降は元の投票ボタン処理を続けてください
         #     details = ", ".join([f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()])
         #     summary.append({"タイトル": n["書籍タイトル"], "点数": int(b_votes["points"].sum()), "内訳": details if details else "-"})
