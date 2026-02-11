@@ -83,7 +83,7 @@ def fetch_events():
         st.error(f"イベントデータ取得エラー: {e}")
         return pd.DataFrame(columns=["event_date", "book_id", "books"])
 
-def save_and_refresh(table, data, message="できたよ"):
+def save_and_refresh(table, data, message=""):
     try:
         # ログインユーザー名を付与
         data["user_name"] = st.session_state.USER
@@ -268,15 +268,39 @@ with tab1:
                         else:
                             st.button("詳細なし", disabled=True, use_container_width=True, key=f"no_url_{b_id}")
                     
-                    with col_b2:
-                        if not my_selection.empty and b_id == str(my_selection.iloc[0]["book_id"]):
-                            st.button("✅ これを選んだ", disabled=True, use_container_width=True, key=f"my_{b_id}")
-                        elif is_nominated:
-                            st.button("選出済", disabled=True, use_container_width=True, key=f"nom_{b_id}")
-                        else:
-                            is_disabled = not my_selection.empty
-                            if st.button("これを選ぶ", key=f"sel_{b_id}", disabled=is_disabled, use_container_width=True, type="primary"):
-                                save_and_refresh("votes", {"action": "選出", "book_id": b_id})          
+                    with col_btn2:
+                    # 投票ボタンを横に並べる
+                    v_col1, v_col2, v_col3 = st.columns([1, 1, 1]) # 3列に増やします
+                    
+                    with v_col1:
+                        d1 = is_my_nomination or (1 in v_points) or (current_p > 0)
+                        if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True):
+                            save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 1}, "1点投票しました")
+                    
+                    with v_col2:
+                        d2 = is_my_nomination or (2 in v_points) or (current_p > 0)
+                        if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True, type="primary"):
+                            save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2}, "2点投票しました")
+                    
+                    with v_col3:
+                        # 💡 自分がこの本に投票している場合のみ「削除」ボタンを有効化
+                        has_voted_this_book = (current_p > 0)
+                        if st.button("🗑️", key=f"del_{b_id}", disabled=not has_voted_this_book, use_container_width=True, help="この本への投票を取り消す"):
+                            # 自分の、この本の、アクションが「投票」のデータだけを消す
+                            supabase.table("votes").delete().eq("user_name", st.session_state.USER).eq("book_id", b_id).eq("action", "投票").execute()
+                            st.cache_data.clear()
+                            st.toast(f"「{n['書籍タイトル']}」への投票を取り消しました", icon="🧹")
+                            st.rerun()
+                            
+                    # with col_b2:
+                    #     if not my_selection.empty and b_id == str(my_selection.iloc[0]["book_id"]):
+                    #         st.button("✅ これを選んだ", disabled=True, use_container_width=True, key=f"my_{b_id}")
+                    #     elif is_nominated:
+                    #         st.button("選出済", disabled=True, use_container_width=True, key=f"nom_{b_id}")
+                    #     else:
+                    #         is_disabled = not my_selection.empty
+                    #         if st.button("これを選ぶ", key=f"sel_{b_id}", disabled=is_disabled, use_container_width=True, type="primary"):
+                    #             save_and_refresh("votes", {"action": "選出", "book_id": b_id})          
                                 
 # --- 7. PAGE 2: RANKING & VOTE ---
 with tab2:
