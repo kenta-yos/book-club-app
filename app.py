@@ -412,7 +412,7 @@ with tab2:
                         save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2}, "2点投票しました")
                 with v3:
                     if current_p > 0:
-                        if st.button("消去", key=f"del_{b_id}", use_container_width=True):
+                        if st.button("投票を取り消す", key=f"del_{b_id}", use_container_width=True):
                             supabase.table("votes").delete().eq("user_name", st.session_state.USER).eq("book_id", b_id).eq("action", "投票").execute()
                             st.cache_data.clear()
                             st.rerun()
