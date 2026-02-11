@@ -351,8 +351,9 @@ with tab2:
             pts = all_stats[i]
             is_top = (pts == max_p and max_p > 0)
             
-            b_votes = vote_only[vote_only["book_id"] == str(n["book_id"])]
-            details = " ".join([f"{user_icon_map.get(v['user_name'], '👤') if is_top else ''}{int(v['points'])}" for _, v in b_votes.iterrows()])
+            b_votes = vote_only[vote_only["book_id"] == str(n["book_id"])]           
+            vote_list = [f"{user_icon_map.get(v['user_name'], '👤')} {int(v['points'])}" for _, v in b_votes.iterrows()]
+            details = " + ".join(vote_list)
             
             prefix = "👑 " if is_top else ""
             pts_color = "#E65100" if is_top else "#1E88E5"
@@ -360,9 +361,9 @@ with tab2:
             ranking_html += f"""
             <div style="margin-bottom: 4px; line-height: 1.2;">
                 {prefix}<b>{n['書籍タイトル']}</b> 
-                <span style="font-size: 2.0rem; font-weight: bold; color: {pts_color}; margin-left: 6px;">{pts}</span>
-                <span style="font-size: 1.0rem; color: #888;">pts</span>
-                <span style="font-size: 1.0rem; color: #666; margin-left: 8px;">[{details}]</span>
+                <span style="font-size: 1.5rem; font-weight: bold; color: {pts_color}; margin-left: 6px;">{pts}</span>
+                <span style="font-size: 0.8rem; color: #555;">pts</span>
+                <span style="font-size: 0.8rem; color: #555; margin-left: 8px;">...{details}</span>
             </div>
             <hr style="margin: 4px 0; border: 0; border-top: 1px solid #eee;">
             """
