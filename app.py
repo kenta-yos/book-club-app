@@ -132,11 +132,15 @@ df_events = fetch_events()
 
 # --- データの加工 ---
 # 1. すべてのイベント（過去・未来問わず）に登録された本のIDを取得
-used_book_ids = df_events["book_id"].unique().tolist() if not df_events.empty else []
+used_book_ids = [str(x) for x in df_events["book_id"].unique().tolist()] if not df_events.empty else []
 
 # 2. Books一覧から、イベントで使用済みの本を除外する
-# (Adminで登録した瞬間に、Booksタブの一覧から消えるようになります)
-df_display_books = df_books[~df_books["id"].astype(str).isin([str(x) for x in used_book_ids])]
+df_display_books = df_books[~df_books["id"].astype(str).isin(used_book_ids)]
+
+# 3. 選出・投票データからも、既に使用された本のデータを除外する
+# これにより、Booksタブの「選出済」判定や、Votesタブのランキングから「確定済の本」が消えます。
+# かつ、選んだ人の「1冊選出済み」フラグもリセットされます。
+df_active_votes = df_votes[~df_votes["book_id"].astype(str).isin(used_book_ids)]
 
 # 固定ヘッダー（ログインユーザー表示）
 c_head1, c_head_upd = st.columns([0.8, 0.2])
@@ -225,8 +229,8 @@ with tab1:
         df_filtered = df_display_books[df_display_books["category"] == selected_cat]
         
     # --- 3. 選出状況チェック ---
-    my_selection = df_votes[(df_votes["user_name"] == st.session_state.USER) & (df_votes["action"] == "選出")]
-    nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
+    my_selection = df_active_votes[(df_active_votes["user_name"] == st.session_state.USER) & (df_active_votes["action"] == "選出")]
+    nominated_ids = df_active_votes[df_active_votes["action"] == "選出"]["book_id"].unique().tolist()
 
     if not my_selection.empty:
         st.success("✅ 1冊選出済みです")
@@ -281,13 +285,13 @@ with tab1:
 # --- 7. PAGE 2: RANKING & VOTE ---
 with tab2:
     st.header("🏆 Ranking")
-    nominated_rows = df_votes[df_votes["action"] == "選出"]
-    
+    nominated_rows = df_active_votes[df_active_votes["action"] == "選出"]
+
     if nominated_rows.empty:
         st.info("まだ候補が選ばれていません。")
     else:
         # --- ランキング表 ---
-        vote_only = df_votes[df_votes["action"] == "投票"]
+        vote_only = df_active_votes[df_active_votes["action"] == "投票"]
         user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
         summary = []
         for _, n in nominated_rows.iterrows():
@@ -512,7 +516,7 @@ with tab4:
         
     # --- 1. 新規選出セクション（ここがメイン！） ---
     st.subheader("🆕 次回の課題本を確定する")
-    nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
+    nominated_ids = df_active_votes[df_active_votes["action"] == "選出"]["book_id"].unique().tolist()
     nominated_books = df_books[df_books["id"].astype(str).isin([str(x) for x in nominated_ids])]
 
     if not nominated_books.empty:
