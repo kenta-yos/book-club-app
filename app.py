@@ -268,7 +268,7 @@ with tab1:
                         else:
                             st.button("詳細なし", disabled=True, use_container_width=True, key=f"no_url_{b_id}")
                     
-                    with col_btn2:
+                    with col_b2:
                         # 投票ボタンを横に並べる
                         v_col1, v_col2, v_col3 = st.columns([1, 1, 1]) # 3列に増やします
                         
