@@ -351,15 +351,20 @@ with tab2:
                             save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2}, "2点投票しました")
                     
                     with v_col3:
-                        # 💡 自分がこの本に投票している場合のみ「削除」ボタンを有効化
+                        # 💡 自分がこの本に投票している（点数が0より大きい）場合のみ、ボタンを描画する
                         has_voted_this_book = (current_p > 0)
-                        if st.button("🗑️", key=f"del_{b_id}", disabled=not has_voted_this_book, use_container_width=True, help="この本への投票を取り消す"):
-                            # 自分の、この本の、アクションが「投票」のデータだけを消す
-                            supabase.table("votes").delete().eq("user_name", st.session_state.USER).eq("book_id", b_id).eq("action", "投票").execute()
-                            st.cache_data.clear()
-                            st.toast(f"「{n['書籍タイトル']}」への投票を取り消しました", icon="🧹")
-                            st.rerun()
-                
+                        
+                        if has_voted_this_book:
+                            if st.button("🗑️", key=f"del_{b_id}", use_container_width=True, help="この本への投票を取り消す"):
+                                # 自分の、この本の、アクションが「投票」のデータだけを消す
+                                supabase.table("votes").delete().eq("user_name", st.session_state.USER).eq("book_id", b_id).eq("action", "投票").execute()
+                                st.cache_data.clear()
+                                st.toast(f"「{n['書籍タイトル']}」への投票を取り消しました", icon="🧹")
+                                st.rerun()
+                        else:
+                            # 投票していない本には何も表示しない（または空のスペースを作る）
+                            st.write("")
+                                        
                 # with col_btn2:
                 #     # 投票ボタンを横に2つ並べる
                 #     v_col1, v_col2 = st.columns(2)
