@@ -536,6 +536,13 @@ with tab4:
                     "book_id": str(target_book_id)
                 }
                 supabase.table("events").insert(new_event).execute()
+
+                # --- 💡 ここで入力値をクリアする ---
+                if "new_event_date" in st.session_state:
+                    del st.session_state["new_event_date"]
+                if "new_event_book" in st.session_state:
+                    del st.session_state["new_event_book"]
+            
                 st.cache_data.clear()
                 st.toast("次回予告を更新しました", icon="🚀")
                 st.rerun()
