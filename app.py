@@ -328,7 +328,6 @@ with tab1:
 # --- 7. PAGE 2: RANKING & VOTE ---
 with tab2:
     st.header("🏆 Ranking")
-    # 選出された本をそのままの順（Booksでの並び順）で取得
     nominated_rows = df_active_votes[df_active_votes["action"] == "選出"]
 
     if nominated_rows.empty:
@@ -337,45 +336,33 @@ with tab2:
         vote_only = df_active_votes[df_active_votes["action"] == "投票"]
         user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
         
-        # --- 1. まず最高得点を計算する ---
+        # 最高得点の計算
         max_p = 0
-        book_stats = []
+        all_stats = []
         for _, n in nominated_rows.iterrows():
-            pts = int(vote_only[vote_only["book_id"] == str(n["book_id"])]["points"].sum())
-            if pts > max_p:
-                max_p = pts
-            book_stats.append(pts)
+            p = int(vote_only[vote_only["book_id"] == str(n["book_id"])]["points"].sum())
+            if p > max_p: max_p = p
+            all_stats.append(p)
 
-        # --- 2. リストを表示（ソートなし） ---
+        # --- ランキング表示エリア ---
+        # 1冊1行のコンパクト表示
         for i, (_, n) in enumerate(nominated_rows.iterrows()):
-            current_pts = book_stats[i]
-            # 最高得点（かつ0点より大きい）なら目立たせる
-            is_top = (current_pts == max_p and max_p > 0)
+            pts = all_stats[i]
+            is_top = (pts == max_p and max_p > 0)
             
-            # 枠付きコンテナ。最高得点なら色を変える工夫
-            with st.container(border=True):
-                col_info, col_num, col_tags = st.columns([0.4, 0.1, 0.5])
+            # 内訳の作成
+            b_votes = vote_only[vote_only["book_id"] == str(n["book_id"])]
+            details = " ".join([f"{user_icon_map.get(v['user_name'], '👤')}{int(v['points'])}" for _, v in b_votes.iterrows()])
+            
+            # TOPなら王冠、そうでなければ点数に応じたバッジ風表示
+            prefix = "👑" if is_top else "📖"
+            
+            # 1行に凝縮して表示
+            # [アイコン] タイトル | 点数 | 内訳
+            with st.container():
+                st.markdown(f"{prefix} **{n['書籍タイトル']}**　`{pts} pts`　<small>{details}</small>", unsafe_allow_html=True)
+                st.divider() # 細い線で区切る
                 
-                with col_info:
-                    if is_top:
-                        st.markdown("🥇 **TOP**")
-                    st.markdown(f"**{n['書籍タイトル']}**")
-                    st.caption(n['著者名'])
-                
-                with col_num:
-                    # 点数を強調表示
-                    st.markdown(f"<h3 style='color: {'#FBC02D' if is_top else '#1E88E5'}; margin:0;'>{current_pts}</h3>", unsafe_allow_html=True)
-                    st.caption("pts")
-                
-                with col_tags:
-                    # 内訳
-                    b_votes = vote_only[vote_only["book_id"] == str(n["book_id"])]
-                    if not b_votes.empty:
-                        tags = [f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()]
-                        st.write(" / ".join(tags))
-                    else:
-                        st.write("-")
-
         st.divider()
         st.subheader("🗳️ 投票")
         
