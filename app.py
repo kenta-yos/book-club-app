@@ -226,7 +226,7 @@ with tab1:
         
     # --- 3. 選出状況チェック ---
     my_selection = df_votes[(df_votes["user_name"] == st.session_state.USER) & (df_votes["action"] == "選出")]
-    nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist)
+    nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
 
     if not my_selection.empty:
         st.success("✅ 1冊選出済みです")
