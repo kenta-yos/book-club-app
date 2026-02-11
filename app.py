@@ -422,11 +422,7 @@ with tab3:
             target_url = book.get("url", "")
 
             # カテゴリ色
-            cat_colors = {
-                "技術書": "#E3F2FD", "ビジネス": "#F1F8E9", 
-                "小説": "#FFFDE7", "哲学": "#F3E5F5", "デザイン": "#FCE4EC"
-            }
-            bg_color = cat_colors.get(category, "#F5F5F5")
+            bg_color = "#F5F5F5"
 
             # HTML組み立て（f-string内でダブルクォーテーションがぶつからないようシングルクォーテーションを使用）
             if target_url:
