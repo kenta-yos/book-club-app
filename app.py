@@ -34,7 +34,7 @@ st.markdown("""
 
     /* タイトルリンク設定 */
     .book-title-link {
-        text-decoration: none;
+        text-decoration: none !important;
         transition: opacity 0.2s;
     }
     
