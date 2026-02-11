@@ -355,14 +355,14 @@ with tab2:
             details = " ".join([f"{user_icon_map.get(v['user_name'], '👤') if is_top else ''}{int(v['points'])}" for _, v in b_votes.iterrows()])
             
             prefix = "👑 " if is_top else ""
-            pts_color = "#FBC02D" if is_top else "#1E88E5"
+            pts_color = "#E65100" if is_top else "#1E88E5"
             
             ranking_html += f"""
             <div style="margin-bottom: 4px; line-height: 1.2;">
                 {prefix}<b>{n['書籍タイトル']}</b> 
-                <span style="font-size: 1.15rem; font-weight: bold; color: {pts_color}; margin-left: 6px;">{pts}</span>
-                <span style="font-size: 0.7rem; color: #888;">pts</span>
-                <span style="font-size: 0.8rem; color: #999; margin-left: 8px;">{details}</span>
+                <span style="font-size: 2.0rem; font-weight: bold; color: {pts_color}; margin-left: 6px;">{pts}</span>
+                <span style="font-size: 1.0rem; color: #888;">pts</span>
+                <span style="font-size: 1.0rem; color: #666; margin-left: 8px;">[{details}]</span>
             </div>
             <hr style="margin: 4px 0; border: 0; border-top: 1px solid #eee;">
             """
