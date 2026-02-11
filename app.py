@@ -344,25 +344,34 @@ with tab2:
             if p > max_p: max_p = p
             all_stats.append(p)
 
-        # --- ランキング表示エリア ---
-        # 1冊1行のコンパクト表示
+        # 全行をひとつの文字列にまとめて描画（行間短縮のため）
+        ranking_html = ""
         for i, (_, n) in enumerate(nominated_rows.iterrows()):
             pts = all_stats[i]
             is_top = (pts == max_p and max_p > 0)
             
-            # 内訳の作成
+            # 内訳の作成（アイコン+点数）
             b_votes = vote_only[vote_only["book_id"] == str(n["book_id"])]
             details = " ".join([f"{user_icon_map.get(v['user_name'], '👤')}{int(v['points'])}" for _, v in b_votes.iterrows()])
             
-            # TOPなら王冠、そうでなければ点数に応じたバッジ風表示
-            prefix = "👑" if is_top else "📖"
+            # 1位だけ王冠、他はなし
+            prefix = "👑 " if is_top else ""
+            # ポイントのフォントサイズを大きくし、色を調整
+            pts_color = "#FBC02D" if is_top else "#1E88E5"
             
-            # 1行に凝縮して表示
-            # [アイコン] タイトル | 点数 | 内訳
-            with st.container():
-                st.markdown(f"{prefix} **{n['書籍タイトル']}**　`{pts} pts`　<small>{details}</small>", unsafe_allow_html=True)
-                st.divider() # 細い線で区切る
-                
+            # 1行分のテキストを組み立て（<br>で改行を制御して行間を詰める）
+            ranking_html += f"""
+            <div style="margin-bottom: 8px; line-height: 1.2;">
+                {prefix}<b>{n['書籍タイトル']}</b> 
+                <span style="font-size: 1.2rem; font-weight: bold; color: {pts_color}; margin-left: 8px;">{pts}</span>
+                <span style="font-size: 0.7rem; color: #666;">pts</span>
+                <span style="font-size: 0.8rem; color: #888; margin-left: 10px;">{details}</span>
+            </div>
+            <hr style="margin: 4px 0; border: 0; border-top: 1px solid #eee;">
+            """
+
+        st.markdown(ranking_html, unsafe_allow_html=True)                
+        
         st.divider()
         st.subheader("🗳️ 投票")
         
