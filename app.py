@@ -340,15 +340,16 @@ with tab2:
         summary = []
         max_points = 0  # 最高得点を保持する変数
         
+        # 1. まず全データをループして最高得点を調べる
         for _, n in nominated_rows.iterrows():
             b_id = n["book_id"]
             b_votes = vote_only[vote_only["book_id"] == b_id]
-            current_points = int(b_votes["points"].sum()) # 追加
-
-            # 最高得点を更新
+            current_points = int(b_votes["points"].sum())
+            
             if current_points > max_points:
                 max_points = current_points
 
+            # 内訳チップの作成
             tags_html = ""
             for _, v in b_votes.iterrows():
                 icon = user_icon_map.get(v['user_name'], '👤')
@@ -359,15 +360,17 @@ with tab2:
                 "points": current_points,
                 "tags": tags_html if tags_html else "-"
             })
-            
-        # --- 表のHTML組み立て ---
+
+        # --- 2. HTMLの組み立て ---
+        # 💡 styleタグも一緒にひとつの文字列として作ります
         table_html = """
         <style>
             .custom-ranking-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
             .custom-ranking-table th, .custom-ranking-table td { border-bottom: 1px solid #eee; padding: 10px 5px; text-align: left; vertical-align: middle; }
             .custom-ranking-table th { color: #888; font-size: 0.75rem; font-weight: normal; }
-            .top-rank { background-color: #fff9c4; } /* 💡 1位の背景を薄い黄色に */
-            .top-badge { background: #fbc02d; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; vertical-align: middle; }
+            .top-rank-row { background-color: #fff9c4 !important; } 
+            .top-badge { background: #fbc02d; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; vertical-align: middle; }
+            .tags-wrapper { display: flex; flex-wrap: wrap; gap: 2px; }
         </style>
         <table class="custom-ranking-table">
             <thead>
@@ -380,12 +383,13 @@ with tab2:
             <tbody>
         """
         
+        # summaryをループして行(tr)を生成
         for item in summary:
-            # 💡 最高得点（かつ0点以上）の場合にクラスを付与
             is_top = (item['points'] == max_points and max_points > 0)
-            row_class = 'class="top-rank"' if is_top else ''
+            row_class = 'class="top-rank-row"' if is_top else ''
             badge = '<span class="top-badge">TOP</span>' if is_top else ''
             
+            # 💡 ここで1行ずつ文字列を足していく
             table_html += f"""
                 <tr {row_class}>
                     <td style="font-weight:bold; color:#333; font-size:0.9rem; line-height:1.2;">{badge}{item['title']}</td>
@@ -393,10 +397,11 @@ with tab2:
                     <td><div class="tags-wrapper">{item['tags']}</div></td>
                 </tr>
             """
+            
         table_html += "</tbody></table>"
         
-        st.markdown(table_html, unsafe_allow_html=True)       
-            
+        # 💡 最後にまとめて st.markdown に流し込む
+        st.markdown(table_html, unsafe_allow_html=True)            
         #     details = ", ".join([f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()])
         #     summary.append({"タイトル": n["書籍タイトル"], "点数": int(b_votes["points"].sum()), "内訳": details if details else "-"})
         
