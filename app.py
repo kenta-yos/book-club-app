@@ -346,7 +346,7 @@ with tab2:
             tags_html = ""
             for _, v in b_votes.iterrows():
                 icon = user_icon_map.get(v['user_name'], '👤')
-                tags_html += f'<span class="vote-tag" style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap;">{icon}{v["user_name"]}({int(v["points"])})</span>'
+                tags_html += f'<span style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap; display:inline-block; margin:2px;">{icon}{v["user_name"]}({int(v["points"])})</span>'
             
             summary.append({
                 "title": n["書籍タイトル"],
@@ -354,24 +354,40 @@ with tab2:
                 "tags": tags_html if tags_html else "-"
             })
 
-        # 点数順にソート（動的に順番が変わります）
+        # 🔥 ここで動的に点数順（降順）に並び替え
         ranking_data = sorted(summary, key=lambda x: x['points'], reverse=True)
 
-        # --- 表のHTML組み立て ---
-        table_html = '<table class="history-table"><tr><th>タイトル</th><th style="width:50px;">点</th><th>内訳</th></tr>'
+        # --- 表のHTML組み立て（CSSを内部に含めて確実にレンダリング） ---
+        table_html = """
+        <style>
+            .custom-ranking-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            .custom-ranking-table th, .custom-ranking-table td { border-bottom: 1px solid #eee; padding: 10px 5px; text-align: left; vertical-align: middle; }
+            .custom-ranking-table th { color: #888; font-size: 0.75rem; font-weight: normal; }
+            .tags-wrapper { display: flex; flex-wrap: wrap; gap: 2px; }
+        </style>
+        <table class="custom-ranking-table">
+            <thead>
+                <tr>
+                    <th>タイトル</th>
+                    <th style="width:25px;">点</th>
+                    <th>内訳</th>
+                </tr>
+            </thead>
+            <tbody>
+        """
+        
         for item in ranking_data:
             table_html += f"""
                 <tr>
-                    <td style="font-weight:bold; color:#333;">{item['title']}</td>
+                    <td style="font-weight:bold; color:#333; font-size:0.9rem; line-height:1.2;">{item['title']}</td>
                     <td style="color:#1E88E5; font-weight:bold; font-size:1.1rem;">{item['points']}</td>
-                    <td><div class="tags-cell">{item['tags']}</div></td>
+                    <td><div class="tags-wrapper">{item['tags']}</div></td>
                 </tr>
             """
-        table_html += '</table>'
+        table_html += "</tbody></table>"
         
-        # 表示
+        # 確実にHTMLとして表示
         st.markdown(table_html, unsafe_allow_html=True)
-
             
         #     details = ", ".join([f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()])
         #     summary.append({"タイトル": n["書籍タイトル"], "点数": int(b_votes["points"].sum()), "内訳": details if details else "-"})
