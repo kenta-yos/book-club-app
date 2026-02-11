@@ -83,20 +83,19 @@ def fetch_events():
         st.error(f"イベントデータ取得エラー: {e}")
         return pd.DataFrame(columns=["event_date", "book_id", "books"])
 
-def save_and_refresh(table, data, message="完了"):
-    with st.spinner("更新中..."):
-        try:
-            # 常に現在のログインユーザー名を付与して保存
-            data["user_name"] = st.session_state.USER
-            supabase.table(table).insert(data).execute()
-            st.cache_data.clear()
-            msg = st.success(message)
-            time.sleep(1)
-            msg.empty()
-            st.rerun()
-        except Exception as e:
-            st.error(f"保存エラー: {e}")
-
+def save_and_refresh(table, data, message="できたよ"):
+    try:
+        # ログインユーザー名を付与
+        data["user_name"] = st.session_state.USER
+        supabase.table(table).insert(data).execute()
+        st.cache_data.clear()
+        # 画面右下にふわっと出る通知
+        st.toast(message, icon="🚀")
+        # 待ち時間を消して即リロード
+        st.rerun()
+    except Exception as e:
+        st.error(f"エラーが発生しちゃった😢: {e}")
+        
 # --- 1. ログイン処理 ---
 user_df = fetch_users()
 
@@ -204,14 +203,13 @@ with tab1:
                     }
                     try:
                         supabase.table("books").insert(book_data).execute()
-                        st.success(f"「{new_title}」を登録しました！")
                         st.cache_data.clear()
-                        time.sleep(1)
-                        st.rerun()
+                        st.toast(f"「{new_title}」を登録しました", icon="🚀")
+                        st.rerun() # 即座に反映
                     except Exception as e:
                         st.error(f"登録エラー: {e}")
                 else:
-                    st.warning("タイトルは必ず入力してください。")
+                    st.warning("タイトルは必ず入力してね🙏")
     
     # --- 2. カテゴリ絞り込みリスト ---
     unique_cats = sorted(df_display_books["category"].dropna().unique().tolist())
@@ -228,16 +226,17 @@ with tab1:
         
     # --- 3. 選出状況チェック ---
     my_selection = df_votes[(df_votes["user_name"] == st.session_state.USER) & (df_votes["action"] == "選出")]
-    nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
+    nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist)
 
     if not my_selection.empty:
-        st.success("✅ 1冊選出済みです。")
+        st.success("✅ 1冊選出済みです")
         if st.button("選出をキャンセルして選び直す", use_container_width=True):
             target_id = str(my_selection.iloc[0]["book_id"])
             supabase.table("votes").delete().eq("book_id", target_id).eq("user_name", st.session_state.USER).eq("action", "選出").execute()
             st.cache_data.clear()
+            st.toast("選出をキャンセルしたよ", icon="🙋")
             st.rerun()
-    
+
     # --- 5. 本の表示（df_filtered を使用） ---
     if df_filtered.empty:
         st.info("該当する本がありません。")
@@ -490,7 +489,7 @@ with tab3:
 # --- Tab 4: Admin (管理者画面) ---
 with tab4:
     # --- 1. 新規選出セクション（ここがメイン！） ---
-    st.subheader("🆕 新しい本を確定する")
+    st.subheader("🆕 次回の課題本を確定する")
     nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
     nominated_books = df_books[df_books["id"].astype(str).isin([str(x) for x in nominated_ids])]
 
@@ -520,9 +519,8 @@ with tab4:
                     "book_id": str(target_book_id)
                 }
                 supabase.table("events").insert(new_event).execute()
-                st.success("次回予告を更新しました！")
                 st.cache_data.clear()
-                time.sleep(1)
+                st.toast("次回予告を更新しました", icon="🚀")
                 st.rerun()
 
     st.divider()
@@ -544,11 +542,10 @@ with tab4:
                     "book_id": str(last_event["book_id"])
                 }
                 supabase.table("events").insert(new_event).execute()
-                st.success(f"「{last_book.get('title')}」の継続開催を登録しました！")
                 st.cache_data.clear()
-                time.sleep(1)
+                st.toast("継続開催を登録しました", icon="🔁")
                 st.rerun()
-    
+
     # --- 3. データの管理 ---
     st.divider()
     st.subheader("🧹 データの管理")
@@ -557,8 +554,7 @@ with tab4:
         try:
             supabase.table("votes").delete().eq("action", "投票").execute()
             st.cache_data.clear()
-            st.success("全ての投票データをリセットしました。")
-            time.sleep(1)
+            st.toast("すべての投票をリセットしました", icon="🙋")
             st.rerun()
         except Exception as e:
             st.error(f"リセットエラー: {e}")
