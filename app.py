@@ -393,20 +393,23 @@ with tab3:
         past_events = pd.DataFrame()
 
     if not past_events.empty:
-        # --- 🆕 年号絞り込みパネル（新しい順） ---
-        # 重複を排除して、数字の大きい順（2026, 2025...）に並べる
+        # 1. 重複を除いた年リストを降順（2026, 2025...）で取得
         unique_years = sorted(past_events["year"].unique().tolist(), reverse=True)
-        year_options = ["すべて"] + unique_years
         
-        # default="すべて" にしておけば、最初は全歴史が見れます
-        selected_year = st.pills("開催年で絞り込み", year_options, default="すべて")
+        # 2. 「すべて」を最後に結合
+        year_options = unique_years + ["すべて"]
+        
+        # 3. リストの先頭（＝一番新しい年）をデフォルトにする
+        default_year = unique_years[0]
+        
+        selected_year = st.pills("開催年で絞り込み", year_options, default=default_year)
 
         # フィルタリング実行
         if selected_year == "すべて":
             df_history_display = past_events.sort_values("event_date", ascending=False)
         else:
             df_history_display = past_events[past_events["year"] == selected_year].sort_values("event_date", ascending=False)
-
+            
         # --- リスト表示部分 ---
         for _, row in df_history_display.iterrows():
             book = row.get("books", {})
