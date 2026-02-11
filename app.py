@@ -502,9 +502,14 @@ with tab3:
             st.caption("※ 複数月で読んだ本は1冊としてカウントしています")
         else:
             st.info("集計できるカテゴリデータがありません。")
-                
+
+
+
 # --- Tab 4: Admin (管理者画面) ---
 with tab4:
+    if "admin_form_counter" not in st.session_state:
+        st.session_state.admin_form_counter = 0
+        
     # --- 1. 新規選出セクション（ここがメイン！） ---
     st.subheader("🆕 次回の課題本を確定する")
     nominated_ids = df_votes[df_votes["action"] == "選出"]["book_id"].unique().tolist()
@@ -517,9 +522,9 @@ with tab4:
         st.warning("現在選出されている本がありません。全リストから表示します。")
         final_list = df_display_books
 
-    with st.form("admin_form"):
+    with st.form(key=f"admin_form_{st.session_state.admin_form_counter}"):
         st.write("選出リストから次回の本を登録します")
-        next_date = st.date_input("読書会の日程", key="new_date")
+        next_date = st.date_input("読書会の日程") # 個別のkeyは不要になります
         
         if not final_list.empty:
             book_options = {f"[{row['category']}] {row['title']}": row['id'] for _, row in final_list.iterrows()}
@@ -536,12 +541,8 @@ with tab4:
                     "book_id": str(target_book_id)
                 }
                 supabase.table("events").insert(new_event).execute()
-
-                # --- 💡 ここで入力値をクリアする ---
-                if "new_event_date" in st.session_state:
-                    del st.session_state["new_event_date"]
-                if "new_event_book" in st.session_state:
-                    del st.session_state["new_event_book"]
+                
+                st.session_state.admin_form_counter += 1
             
                 st.cache_data.clear()
                 st.toast("次回予告を更新しました", icon="🚀")
