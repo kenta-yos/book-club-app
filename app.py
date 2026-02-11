@@ -579,7 +579,11 @@ with tab4:
     # Logout
     st.divider()
     if st.button("Logout", use_container_width=True):
-        st.session_state.USER = None
+        # 💡 セッションの中身をすべて消去する
+        st.session_state.clear()
+        # 💡 クエリパラメータ（URLの後ろについている名前）も消す
+        st.query_params.clear()
+        # 💡 強制リロードして最初のログイン画面に戻す
         st.rerun()
         
 # 最後に空白
