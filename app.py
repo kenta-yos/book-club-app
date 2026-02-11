@@ -38,6 +38,25 @@ st.markdown("""
         transition: opacity 0.2s;
     }
     
+    /* 投票内訳のチップデザイン */
+    .vote-tag-container {
+        display: flex;
+        flex-wrap: wrap; /* 幅が足りない時に自動改行 */
+        gap: 6px;
+        padding: 5px 0;
+    }
+    .vote-tag {
+        display: flex;
+        align-items: center;
+        background-color: #f0f2f6;
+        border-radius: 15px;
+        padding: 2px 10px;
+        font-size: 0.8rem;
+        color: #333;
+        white-space: nowrap; /* アイコンと名前がバラバラにならない */
+        border: 1px solid #ddd;
+    }
+    
     </style>
     """, unsafe_allow_html=True)
 
@@ -317,11 +336,38 @@ with tab2:
         for _, n in nominated_rows.iterrows():
             b_id = n["book_id"]
             b_votes = vote_only[vote_only["book_id"] == b_id]
-            details = ", ".join([f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()])
-            summary.append({"タイトル": n["書籍タイトル"], "点数": int(b_votes["points"].sum()), "内訳": details if details else "-"})
+            points = int(b_votes["points"].sum()) #追加
+
+            # 内訳をHTMLのチップ形式で生成
+            tags_html = ""
+            for _, v in b_votes.iterrows():
+                icon = user_icon_map.get(v['user_name'], '👤')
+                tags_html += f'<div class="vote-tag">{icon} {v["user_name"]} ({int(v["points"])})</div>'
+            
+            summary.append({
+                "title": n["書籍タイトル"],
+                "points": points,
+                "tags_html": tags_html if tags_html else '<div style="color:#999; font-size:0.8rem;">投票なし</div>'
+            })
         
-        ranking_df = pd.DataFrame(summary).sort_values("点数", ascending=False)
-        st.dataframe(ranking_df, hide_index=True, use_container_width=True)
+        # 点数順に並び替え
+        sorted_summary = sorted(summary, key=lambda x: x['points'], reverse=True)
+
+        # カスタムランキング表示
+        for item in sorted_summary:
+            with st.container(border=True):
+                col_score, col_main = st.columns([0.2, 0.8])
+                with col_score:
+                    st.markdown(f"<div style='text-align:center;'><div style='font-size:0.8rem; color:#888;'>点数</div><div style='font-size:1.5rem; font-weight:bold; color:#1E88E5;'>{item['points']}</div></div>", unsafe_allow_html=True)
+                with col_main:
+                    st.markdown(f"**{item['title']}**")
+                    st.markdown(f'<div class="vote-tag-container">{item["tags_html"]}</div>', unsafe_allow_html=True)
+            
+        #     details = ", ".join([f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()])
+        #     summary.append({"タイトル": n["書籍タイトル"], "点数": int(b_votes["points"].sum()), "内訳": details if details else "-"})
+        
+        # ranking_df = pd.DataFrame(summary).sort_values("点数", ascending=False)
+        # st.dataframe(ranking_df, hide_index=True, use_container_width=True)
         
         st.divider()
         st.subheader("🗳️ 投票")
