@@ -355,7 +355,7 @@ with tab2:
                         has_voted_this_book = (current_p > 0)
                         
                         if has_voted_this_book:
-                            if st.button("🗑️", key=f"del_{b_id}", use_container_width=True, help="この本への投票を取り消す"):
+                            if st.button("投票取り消し", key=f"del_{b_id}", use_container_width=True, help="この本への投票を取り消す"):
                                 # 自分の、この本の、アクションが「投票」のデータだけを消す
                                 supabase.table("votes").delete().eq("user_name", st.session_state.USER).eq("book_id", b_id).eq("action", "投票").execute()
                                 st.cache_data.clear()
@@ -364,19 +364,7 @@ with tab2:
                         else:
                             # 投票していない本には何も表示しない（または空のスペースを作る）
                             st.write("")
-                                        
-                # with col_btn2:
-                #     # 投票ボタンを横に2つ並べる
-                #     v_col1, v_col2 = st.columns(2)
-                #     with v_col1:
-                #         d1 = is_my_nomination or (1 in v_points) or (current_p > 0)
-                #         if st.button("+1点", key=f"v1_{b_id}", disabled=d1, use_container_width=True, type="secondary"):
-                #             save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 1})
-                #     with v_col2:
-                #         d2 = is_my_nomination or (2 in v_points) or (current_p > 0)
-                #         if st.button("+2点", key=f"v2_{b_id}", disabled=d2, use_container_width=True, type="primary"): # 大事な方を色付きに
-                #             save_and_refresh("votes", {"action": "投票", "book_id": b_id, "points": 2})
-    
+                                            
         st.divider()
         st.subheader(f"🗳️ {st.session_state.USER} さんの投票")
         if st.button("自分の投票をすべてリセット", type="secondary", use_container_width=True):
