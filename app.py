@@ -328,78 +328,67 @@ with tab1:
 # --- 7. PAGE 2: RANKING & VOTE ---
 with tab2:
     st.header("🏆 Ranking")
-    # 選出されたすべての本
     nominated_rows = df_active_votes[df_active_votes["action"] == "選出"]
 
     if nominated_rows.empty:
         st.info("まだ候補が選ばれていません。")
     else:
-        # --- データ準備 ---
         vote_only = df_active_votes[df_active_votes["action"] == "投票"]
         user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
         
-        summary = []
-        max_p = 0
+        summary_list = []
+        current_max_p = 0
         
-        # 1. すべての選出本をループして集計
         for _, n in nominated_rows.iterrows():
-            b_id = n["book_id"]
+            b_id = str(n["book_id"])
             b_votes = vote_only[vote_only["book_id"] == b_id]
             pts = int(b_votes["points"].sum())
-            
-            if pts > max_p:
-                max_p = pts
+            if pts > current_max_p:
+                current_max_p = pts
 
-            t_list = []
+            t_html = ""
             for _, v in b_votes.iterrows():
                 icon = user_icon_map.get(v['user_name'], '👤')
-                t_list.append(f'<span style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap; display:inline-block; margin:2px;">{icon}{v["user_name"]}({int(v["points"])})</span>')
+                t_html += f'<span style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap; display:inline-block; margin:2px;">{icon}{v["user_name"]}({int(v["points"])})</span>'
             
-            summary.append({
+            summary_list.append({
                 "title": n["書籍タイトル"],
                 "points": pts,
-                "tags": "".join(t_list) if t_list else "-"
+                "tags": t_html if t_html else "-"
             })
         
-        # 点数順にソート
-        ranking_data = sorted(summary, key=lambda x: x['points'], reverse=True)
+        ranking_data = sorted(summary_list, key=lambda x: x['points'], reverse=True)
 
-        # 2. HTMLの組み立て（CSSとテーブル本体を分ける）
-        # スタイル定義（f-stringを使わないことで波括弧の衝突を防ぐ）
+        # CSSを適用
         st.markdown("""
         <style>
             .rk-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
             .rk-table th, .rk-table td { border-bottom: 1px solid #eee; padding: 10px 5px; text-align: left; }
-            .rk-table th { color: #888; font-size: 0.75rem; font-weight: normal; }
             .top-row { background-color: #fff9c4 !important; }
             .top-badge { background: #fbc02d; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; }
             .tags-inline { display: flex; flex-wrap: wrap; gap: 2px; }
         </style>
         """, unsafe_allow_html=True)
 
-        # テーブル本体の組み立て
-        table_html = '<table class="rk-table"><thead><tr><th>タイトル</th><th style="width:30px;">点</th><th>内訳</th></tr></thead><tbody>'
-
+        # テーブル作成（ここが重要：一つの変数にまとめ切る）
+        table_body = ""
         for item in ranking_data:
-            is_top = (item['points'] == max_p and max_p > 0)
-            row_class = 'class="top-row"' if is_top else ''
+            is_top = (item['points'] == current_max_p and current_max_p > 0)
+            row_attr = 'class="top-row"' if is_top else ''
             badge = '<span class="top-badge">TOP</span>' if is_top else ''
             
-            # 各行を f-string で作成
-            row_html = f"""
-                <tr {row_class}>
+            table_body += f"""
+                <tr {row_attr}>
                     <td style="font-weight:bold; color:#333; font-size:0.9rem;">{badge}{item['title']}</td>
                     <td style="color:#1E88E5; font-weight:bold; font-size:1.1rem;">{item['points']}</td>
                     <td><div class="tags-inline">{item['tags']}</div></td>
                 </tr>
             """
-            table_html += row_html
 
-        table_html += "</tbody></table>"
-        
-        # 3. 表示
-        st.markdown(table_html, unsafe_allow_html=True)
-        
+        # 最後に一回だけ markdown で出す
+        final_table_html = f'<table class="rk-table"><thead><tr><th>タイトル</th><th>点</th><th>内訳</th></tr></thead><tbody>{table_body}</tbody></table>'
+        st.markdown(final_table_html, unsafe_allow_html=True)
+
         st.divider()
         st.subheader("🗳️ 投票")
         
