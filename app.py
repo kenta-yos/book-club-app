@@ -276,8 +276,8 @@ with tab1:
                         else:
                             is_disabled = not my_selection.empty
                             if st.button("これを選ぶ", key=f"sel_{b_id}", disabled=is_disabled, use_container_width=True, type="primary"):
-                                save_and_refresh("votes", {"action": "選出", "book_id": b_id})          
-                                
+                                save_and_refresh("votes", {"action": "選出", "book_id": b_id}, f"「{row['title']}」を選出したよ👍")
+
 # --- 7. PAGE 2: RANKING & VOTE ---
 with tab2:
     st.header("🏆 Ranking")
