@@ -328,59 +328,82 @@ with tab1:
 # --- 7. PAGE 2: RANKING & VOTE ---
 with tab2:
     st.header("🏆 Ranking")
-    # 選出された本のリスト
+    # 選出されたすべての本
     nominated_rows = df_active_votes[df_active_votes["action"] == "選出"]
 
     if nominated_rows.empty:
         st.info("まだ候補が選ばれていません。")
     else:
-        # --- ランキング集計ロジック ---
+        # --- データ準備 ---
         vote_only = df_active_votes[df_active_votes["action"] == "投票"]
         user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
         
         summary = []
+        max_p = 0
+        
+        # 選出された本をループして集計
         for _, n in nominated_rows.iterrows():
             b_id = n["book_id"]
             b_votes = vote_only[vote_only["book_id"] == b_id]
+            pts = int(b_votes["points"].sum())
             
-            # 内訳をチップ形式のHTMLに変換
-            tags_html = ""
+            # 最高得点の更新（TOPバッジ用）
+            if pts > max_p:
+                max_p = pts
+
+            # 内訳チップの作成
+            t_list = []
             for _, v in b_votes.iterrows():
                 icon = user_icon_map.get(v['user_name'], '👤')
-                tags_html += f'<span class="vote-tag" style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap;">{icon}{v["user_name"]}({int(v["points"])})</span>'
+                t_list.append(f'<span style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap; display:inline-block; margin:2px;">{icon}{v["user_name"]}({int(v["points"])})</span>')
             
+            # ここで summary リストに1件ずつ追加（ここがループ内にあることが重要です）
             summary.append({
                 "title": n["書籍タイトル"],
-                "points": int(b_votes["points"].sum()),
-                "tags": tags_html if tags_html else "-"
+                "points": pts,
+                "tags": "".join(t_list) if t_list else "-"
             })
         
-        # 点数順にソート（動的に順番が変わります）
+        # 点数順にソート
         ranking_data = sorted(summary, key=lambda x: x['points'], reverse=True)
 
-        # --- 表のHTML組み立て ---
-        table_html = '<table class="history-table"><tr><th>タイトル</th><th style="width:50px;">点</th><th>内訳</th></tr>'
+        # --- HTMLの組み立て ---
+        table_html = """
+        <style>
+            .rk-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            .rk-table th, .rk-table td { border-bottom: 1px solid #eee; padding: 10px 5px; text-align: left; }
+            .rk-table th { color: #888; font-size: 0.75rem; font-weight: normal; }
+            .top-row { background-color: #fff9c4 !important; }
+            .top-badge { background: #fbc02d; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; }
+            .tags-inline { display: flex; flex-wrap: wrap; gap: 2px; }
+        </style>
+        <table class="rk-table">
+            <thead>
+                <tr><th>タイトル</th><th style="width:30px;">点</th><th>内訳</th></tr>
+            </thead>
+            <tbody>
+        """
+
         for item in ranking_data:
+            # 1位かつ1点以上の場合にTOPバッジを表示
+            is_top = (item['points'] == max_p and max_p > 0)
+            row_class = 'class="top-row"' if is_top else ''
+            badge = '<span class="top-badge">TOP</span>' if is_top else ''
+            
             table_html += f"""
-                <tr>
-                    <td style="font-weight:bold; color:#333;">{item['title']}</td>
+                <tr {row_class}>
+                    <td style="font-weight:bold; color:#333; font-size:0.9rem;">{badge}{item['title']}</td>
                     <td style="color:#1E88E5; font-weight:bold; font-size:1.1rem;">{item['points']}</td>
-                    <td><div class="tags-cell">{item['tags']}</div></td>
+                    <td><div class="tags-inline">{item['tags']}</div></td>
                 </tr>
             """
-        table_html += '</table>'
+
+        table_html += "</tbody></table>"
         
-        # 表示
+        # HTMLを一括表示
         st.markdown(table_html, unsafe_allow_html=True)
         
-        # 以降は元の投票ボタン処理を続けてください
-        #     details = ", ".join([f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()])
-        #     summary.append({"タイトル": n["書籍タイトル"], "点数": int(b_votes["points"].sum()), "内訳": details if details else "-"})
-        
-        # ranking_df = pd.DataFrame(summary).sort_values("点数", ascending=False)
-        # st.dataframe(ranking_df, hide_index=True, use_container_width=True)
-        
-        # st.divider()
+        st.divider()
         st.subheader("🗳️ 投票")
         
         my_votes = vote_only[vote_only["user_name"] == st.session_state.USER]
