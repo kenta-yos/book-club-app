@@ -37,24 +37,28 @@ st.markdown("""
         text-decoration: none !important;
         transition: opacity 0.2s;
     }
-    
-    /* 投票内訳のチップデザイン */
-    .vote-tag-container {
-        display: flex;
-        flex-wrap: wrap; /* 幅が足りない時に自動改行 */
-        gap: 6px;
-        padding: 5px 0;
+
+    /* 表形式を維持したまま中身を折り返す設定 */
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
     }
-    .vote-tag {
-        display: flex;
-        align-items: center;
-        background-color: #f0f2f6;
-        border-radius: 15px;
-        padding: 2px 10px;
+    .history-table th, .history-table td {
+        border-bottom: 1px solid #eee;
+        padding: 10px 5px;
+        text-align: left;
+    }
+    .history-table th {
+        color: #888;
+        font-weight: normal;
         font-size: 0.8rem;
-        color: #333;
-        white-space: nowrap; /* アイコンと名前がバラバラにならない */
-        border: 1px solid #ddd;
+    }
+    /* 内訳セル専用：チップを並べて折り返す */
+    .tags-cell {
+        display: flex;
+        flex-wrap: wrap; /* これで表の中でも折り返す */
+        gap: 4px;
     }
     
     </style>
@@ -332,36 +336,42 @@ with tab2:
         # --- ランキング表 ---
         vote_only = df_active_votes[df_active_votes["action"] == "投票"]
         user_icon_map = dict(zip(user_df['user_name'], user_df['icon']))
+        
         summary = []
         for _, n in nominated_rows.iterrows():
             b_id = n["book_id"]
             b_votes = vote_only[vote_only["book_id"] == b_id]
-            points = int(b_votes["points"].sum()) #追加
 
-            # 内訳をHTMLのチップ形式で生成
+            # 内訳をチップ形式のHTMLに変換
             tags_html = ""
             for _, v in b_votes.iterrows():
                 icon = user_icon_map.get(v['user_name'], '👤')
-                tags_html += f'<div class="vote-tag">{icon} {v["user_name"]} ({int(v["points"])})</div>'
+                tags_html += f'<span class="vote-tag" style="background:#f0f2f6; border-radius:10px; padding:2px 8px; font-size:0.75rem; border:1px solid #ddd; white-space:nowrap;">{icon}{v["user_name"]}({int(v["points"])})</span>'
             
             summary.append({
                 "title": n["書籍タイトル"],
-                "points": points,
-                "tags_html": tags_html if tags_html else '<div style="color:#999; font-size:0.8rem;">投票なし</div>'
+                "points": int(b_votes["points"].sum()),
+                "tags": tags_html if tags_html else "-"
             })
-        
-        # 点数順に並び替え
-        sorted_summary = sorted(summary, key=lambda x: x['points'], reverse=True)
 
-        # カスタムランキング表示
-        for item in sorted_summary:
-            with st.container(border=True):
-                col_score, col_main = st.columns([0.2, 0.8])
-                with col_score:
-                    st.markdown(f"<div style='text-align:center;'><div style='font-size:0.8rem; color:#888;'>点数</div><div style='font-size:1.5rem; font-weight:bold; color:#1E88E5;'>{item['points']}</div></div>", unsafe_allow_html=True)
-                with col_main:
-                    st.markdown(f"**{item['title']}**")
-                    st.markdown(f'<div class="vote-tag-container">{item["tags_html"]}</div>', unsafe_allow_html=True)
+        # 点数順にソート（動的に順番が変わります）
+        ranking_data = sorted(summary, key=lambda x: x['points'], reverse=True)
+
+        # --- 表のHTML組み立て ---
+        table_html = '<table class="history-table"><tr><th>タイトル</th><th style="width:50px;">点</th><th>内訳</th></tr>'
+        for item in ranking_data:
+            table_html += f"""
+                <tr>
+                    <td style="font-weight:bold; color:#333;">{item['title']}</td>
+                    <td style="color:#1E88E5; font-weight:bold; font-size:1.1rem;">{item['points']}</td>
+                    <td><div class="tags-cell">{item['tags']}</div></td>
+                </tr>
+            """
+        table_html += '</table>'
+        
+        # 表示
+        st.markdown(table_html, unsafe_allow_html=True)
+
             
         #     details = ", ".join([f"{user_icon_map.get(v['user_name'], '👤')}{v['user_name']}({int(v['points'])})" for _, v in b_votes.iterrows()])
         #     summary.append({"タイトル": n["書籍タイトル"], "点数": int(b_votes["points"].sum()), "内訳": details if details else "-"})
@@ -369,7 +379,7 @@ with tab2:
         # ranking_df = pd.DataFrame(summary).sort_values("点数", ascending=False)
         # st.dataframe(ranking_df, hide_index=True, use_container_width=True)
         
-        st.divider()
+        # st.divider()
         st.subheader("🗳️ 投票")
         
         my_votes = vote_only[vote_only["user_name"] == st.session_state.USER]
