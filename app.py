@@ -477,7 +477,7 @@ with tab3:
             df_counts = pd.Series(cat_list).value_counts().reset_index()
             df_counts.columns = ["カテゴリ", "冊数"]
 
-            # 3. Altairでグラフを作成 (以前と同じお洒落な設定)
+            # 2. Altairでグラフを作成
             import altair as alt
 
             bars = alt.Chart(df_counts).mark_bar(
@@ -485,22 +485,22 @@ with tab3:
                 cornerRadiusBottomRight=5
             ).encode(
                 x=alt.X("冊数:Q", title=None, axis=None),
-                y=alt.Y("カテゴリ:N", title=None, sort='-x'),
+                # 💡 labelLimit を 0（無制限）に設定し、折り返しを許可する設定を追加
+                y=alt.Y("カテゴリ:N", title=None, sort='-x', axis=alt.Axis(labelLimit=0)),
                 color=alt.Color("カテゴリ:N", legend=None, scale=alt.Scale(scheme='viridis'))
             )
 
             text = bars.mark_text(
-                align='left',
-                baseline='middle',
-                dx=5,
-                fontSize=14,
-                fontWeight='bold'
-            ).encode(
-                text='冊数:Q'
-            )
+                align='left', baseline='middle', dx=5,
+                fontSize=14, fontWeight='bold'
+            ).encode(text='冊数:Q')
 
+            # 💡 グラフ全体の描画設定を調整
             chart = (bars + text).properties(
                 height=alt.Step(40)
+            ).configure_axis(
+                labelFontSize=12,  # ラベルを少し読みやすく
+                labelPadding=10    # バーと文字の間の余白
             ).configure_view(
                 strokeOpacity=0
             )
