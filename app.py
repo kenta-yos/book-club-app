@@ -263,7 +263,7 @@ with tab1:
     nominated_ids = df_active_votes[df_active_votes["action"] == "選出"]["book_id"].unique().tolist()
 
     if not my_selection.empty:
-        st.success("✅ 1冊選出済みです")
+        st.success("✅ もうすでに1冊選んでるよ")
         if st.button("選出をキャンセルして選び直す", use_container_width=True):
             target_id = str(my_selection.iloc[0]["book_id"])
             supabase.table("votes").delete().eq("book_id", target_id).eq("user_name", st.session_state.USER).eq("action", "選出").execute()
@@ -316,12 +316,12 @@ with tab1:
                     # --- B. 選出ボタンエリア ---
                     # 詳細ボタンを消したので、ボタン1つを大きく配置
                     if not my_selection.empty and b_id == str(my_selection.iloc[0]["book_id"]):
-                        st.button("✅ これを選んだ", disabled=True, use_container_width=True, key=f"my_{b_id}")
+                        st.button("✅ これを選んでるよ", disabled=True, use_container_width=True, key=f"my_{b_id}")
                     elif is_nominated:
-                        st.button("選出済", disabled=True, use_container_width=True, key=f"nom_{b_id}")
+                        st.button("🙅‍♂️ 他の人が選んでるよ", disabled=True, use_container_width=True, key=f"nom_{b_id}")
                     else:
                         is_disabled = not my_selection.empty
-                        btn_label = "これを選ぶ" if not is_disabled else "既に選出済みです"
+                        btn_label = "これが読みたい" if not is_disabled else "既に選出済みです"
                         if st.button(btn_label, key=f"sel_{b_id}", disabled=is_disabled, use_container_width=True, type="primary"):
                             save_and_refresh("votes", {"action": "選出", "book_id": b_id}, f"「{row['title']}」を選出したよ👍")
                             
