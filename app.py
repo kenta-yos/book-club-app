@@ -645,8 +645,9 @@ with tab4:
     # --- 3. データの管理 ---
     st.divider()
     st.subheader("🧹 データの管理")
-    confirm_reset = st.checkbox("全ユーザーの投票リセットを実行する")
-    if st.button("全ユーザーの投票を完全にリセット", type="primary", use_container_width=True, disabled=not confirm_reset):
+    st.info("※ 「投票」のみを削除します。「選出」のデータは保持されます。")
+    confirm_reset = st.checkbox("全ユーザーの投票リセットを実行します")
+    if st.button("投票を一括リセット", type="primary", use_container_width=True, disabled=not confirm_reset):
         try:
             supabase.table("votes").delete().eq("action", "投票").execute()
             st.cache_data.clear()
