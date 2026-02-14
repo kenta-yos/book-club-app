@@ -210,6 +210,20 @@ else:
     # テーブルが完全に空、またはエラーの場合
     with st.container(border=True):
         st.info("📅 次回の開催は未定です。")
+        
+# --- マニュアルリンク（右寄せ） ---
+st.markdown(
+    '''
+    <div style="display: flex; justify-content: flex-end; margin-top: -5px; margin-bottom: 10px;">
+        <a href="https://embed.app.guidde.com/playbooks/3mLXzjBGrBBuNNJZ66rV9D?mode=docOnly" 
+           target="_blank" 
+           style="font-size: 0.75rem; color: #888; text-decoration: none; border: 1px solid #eee; padding: 4px 10px; border-radius: 20px; background-color: #fafafa;">
+            ❔ 本の選出・投票の方法
+        </a>
+    </div>
+    ''', 
+    unsafe_allow_html=True
+)
 
 # --- タブの作成 ---
 tab1, tab2, tab3, tab4 = st.tabs(["📖 Books", "🗳️ Votes", "📜 History", "⚙️ Admin"])
