@@ -26,7 +26,7 @@ export default function LoginPage() {
   async function fetchUsers() {
     const { data, error } = await supabase
       .from("users")
-      .select("user_name, icon")
+      .select("id, user_name, icon")
       .order("user_name");
 
     if (error) {
