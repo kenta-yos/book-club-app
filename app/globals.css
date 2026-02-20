@@ -34,9 +34,8 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
-    /* Pull-to-refresh のため body 自体のスクロールを無効化 */
-    overflow: hidden;
-    height: 100dvh;
+    /* ネイティブ pull-to-refresh を無効化しカスタム実装と競合しないようにする */
+    overscroll-behavior-y: none;
   }
 }
 
@@ -48,7 +47,6 @@
 /* Smooth scrolling */
 html {
   -webkit-tap-highlight-color: transparent;
-  height: 100%;
 }
 
 /* Bottom nav safe area */

@@ -31,8 +31,7 @@ export function PullToRefreshWrapper({
   return (
     <div
       ref={containerRef}
-      className={cn("overflow-y-auto h-full pb-28", className)}
-      style={{ overscrollBehaviorY: "contain" }}
+      className={cn("pb-28", className)}
     >
       {/* Pull indicator */}
       <div

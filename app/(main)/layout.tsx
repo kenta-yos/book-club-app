@@ -8,8 +8,8 @@ export default function MainLayout({
   return (
     // h-screen + overflow-hidden でページ全体の高さを固定し、
     // 各ページ内の PullToRefreshWrapper が独立してスクロールできるようにする
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      <main className="flex-1 overflow-hidden">
+    <div className="min-h-screen bg-gray-50">
+      <main>
         {children}
       </main>
       <BottomNav />
