@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { ExternalLink } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer,
-  LabelList, Legend,
+  LabelList, AreaChart, Area,
 } from "recharts";
 
 const COLORS = ["#1d4ed8","#7c3aed","#059669","#d97706","#dc2626","#0891b2","#4f46e5","#16a34a"];
@@ -192,24 +192,39 @@ export default function HistoryPage() {
         {trendData.length >= 2 && trendCategories.length > 0 && (
           <div className="mb-8">
             <h3 className="text-sm font-bold text-gray-700 mb-1">📈 興味の変遷</h3>
-            <p className="text-xs text-gray-400 mb-3">年ごとのカテゴリ別冊数（積み上げ）</p>
+            <p className="text-xs text-gray-400 mb-3">年ごとの読書カテゴリの流れ</p>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={trendData} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
+                <AreaChart data={trendData} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
+                  <defs>
+                    {trendCategories.map((cat, i) => (
+                      <linearGradient key={cat} id={`grad-${i}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.85} />
+                        <stop offset="95%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.55} />
+                      </linearGradient>
+                    ))}
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                   <XAxis dataKey="year" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip
-                    formatter={(v: number, name: string) => [`${v} 冊`, name]}
+                    formatter={(v: number, name: string) => v > 0 ? [`${v} 冊`, name] : null}
                     contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 11 }}
-                    cursor={{ fill: "rgba(0,0,0,0.03)" }}
+                    itemStyle={{ padding: "1px 0" }}
+                    cursor={{ stroke: "#e5e7eb", strokeWidth: 1 }}
                   />
                   {trendCategories.map((cat, i) => (
-                    <Bar key={cat} dataKey={cat} stackId="a"
-                      fill={COLORS[i % COLORS.length]}
-                      radius={i === trendCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                    <Area
+                      key={cat}
+                      type="monotone"
+                      dataKey={cat}
+                      stackId="1"
+                      stroke={COLORS[i % COLORS.length]}
+                      strokeWidth={1.5}
+                      fill={`url(#grad-${i})`}
+                    />
                   ))}
-                </BarChart>
+                </AreaChart>
               </ResponsiveContainer>
               {/* 凡例 */}
               <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-3">
