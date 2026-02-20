@@ -74,13 +74,13 @@ export default function BooksPage() {
 
     try {
       const [booksRes, catsRes, eventsRes, votesRes] = await Promise.all([
-        supabase.from("books").select("*").is("deleted_at", null),
+        supabase.from("books").select("*"),
         supabase.from("categories").select("name").order("id"),
         supabase.from("events").select("*, books(*)").order("event_date", { ascending: false }),
         supabase.from("votes").select("*"),
       ]);
 
-      const allBooks = booksRes.data || [];
+      const allBooks = (booksRes.data || []).filter((b: any) => !b.deleted_at);
       const allCats = catsRes.data?.map((c: any) => c.name) || [];
       const allEvents = eventsRes.data || [];
       const allVotes = votesRes.data || [];
