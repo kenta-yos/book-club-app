@@ -25,6 +25,7 @@ export default function BooksPage() {
   // ─────────────────────────────────────────────────────────────
 
   const [nextEvent, setNextEvent] = useState<EventWithBook | null>(null);
+  const [lastPastEventDate, setLastPastEventDate] = useState<string | null>(null);
   const [selectedCat, setSelectedCat] = useState<string>("すべて");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -106,6 +107,16 @@ export default function BooksPage() {
         setNextEvent(sorted[0] as EventWithBook);
       } else {
         setNextEvent(null);
+      }
+
+      const pastEvents = allEvents.filter((e: any) => e.event_date < today);
+      if (pastEvents.length > 0) {
+        const latestPast = [...pastEvents].sort((a: any, b: any) =>
+          b.event_date.localeCompare(a.event_date)
+        )[0];
+        setLastPastEventDate(latestPast.event_date);
+      } else {
+        setLastPastEventDate(null);
       }
 
       setBooks(allBooks);
@@ -377,6 +388,9 @@ export default function BooksPage() {
                     const isLoading = actionLoading === bId;
                     const isInterested = interestedBookIds.has(bId);
                     const isPendingNominate = pendingNominateBook?.id === book.id;
+                    const isNew = lastPastEventDate !== null &&
+                      book.created_at &&
+                      book.created_at.substring(0, 10) > lastPastEventDate;
 
                     return (
                       <div key={bId}
@@ -387,14 +401,19 @@ export default function BooksPage() {
                         {/* Title + bookmark button */}
                         <div className="flex items-start gap-2 mb-3">
                           <div className="flex-1 min-w-0">
+                            {isNew && (
+                              <span className="inline-block text-[10px] font-black tracking-wide bg-rose-500 text-white px-1.5 py-0.5 rounded mr-1.5 align-middle leading-none">
+                                NEW
+                              </span>
+                            )}
                             {hasUrl ? (
                               <a href={book.url!} target="_blank" rel="noopener noreferrer"
-                                className="flex items-start gap-1 text-blue-600 font-bold text-base leading-snug hover:opacity-80 active:opacity-60">
-                                <span className="flex-1">{book.title}</span>
-                                <ExternalLink size={14} className="flex-shrink-0 mt-0.5 opacity-60" />
+                                className="inline items-start gap-1 text-blue-600 font-bold text-base leading-snug hover:opacity-80 active:opacity-60">
+                                <span>{book.title}</span>
+                                <ExternalLink size={14} className="inline ml-0.5 mb-0.5 opacity-60" />
                               </a>
                             ) : (
-                              <p className="font-bold text-base text-gray-900 leading-snug">{book.title}</p>
+                              <span className="font-bold text-base text-gray-900 leading-snug">{book.title}</span>
                             )}
                             {book.author && (
                               <p className="text-xs text-gray-400 mt-1">{book.author}</p>
