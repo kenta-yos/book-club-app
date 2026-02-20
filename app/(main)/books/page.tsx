@@ -9,7 +9,7 @@ import { NextEventBanner } from "@/components/NextEventBanner";
 import { BooksPageSkeleton } from "@/components/Skeleton";
 import { PullToRefreshWrapper } from "@/components/PullToRefreshWrapper";
 import { toast } from "sonner";
-import { Plus, X, ExternalLink } from "lucide-react";
+import { Plus, X, ExternalLink, Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function BooksPage() {
@@ -20,7 +20,6 @@ export default function BooksPage() {
   const [usedBookIds, setUsedBookIds] = useState<string[]>([]);
 
   // ── Optimistic UI 用state ──────────────────────────────────────
-  // null = 未選出, string = 選出済みbook_id (楽観的に先行更新)
   const [myNominationBookId, setMyNominationBookId] = useState<string | null>(null);
   const [nominatedBookIds, setNominatedBookIds] = useState<string[]>([]);
   // ─────────────────────────────────────────────────────────────
@@ -38,7 +37,13 @@ export default function BooksPage() {
   const [newUrl, setNewUrl] = useState("");
   const [submittingBook, setSubmittingBook] = useState(false);
 
-  // ユーザー名をrefで保持（loadData内で参照するため）
+  // ── 推薦コメント: 選出前にコメントを入力するインラインフォーム ──
+  const [pendingNominateBook, setPendingNominateBook] = useState<Book | null>(null);
+  const [nominationComment, setNominationComment] = useState("");
+
+  // ── 気になる: localStorage に保存する個人ブックマーク ──────────
+  const [interestedBookIds, setInterestedBookIds] = useState<Set<string>>(new Set());
+
   const userNameRef = useRef<string>("");
 
   useEffect(() => {
@@ -47,6 +52,13 @@ export default function BooksPage() {
     const user = JSON.parse(stored) as User;
     setCurrentUser(user);
     userNameRef.current = user.user_name;
+
+    // 気になる: localStorage から読み込み
+    const storedInterested = localStorage.getItem(`bookclub_interested_${user.user_name}`);
+    if (storedInterested) {
+      setInterestedBookIds(new Set(JSON.parse(storedInterested)));
+    }
+
     loadData(user.user_name);
   }, [router]);
 
@@ -54,7 +66,6 @@ export default function BooksPage() {
     const uName = userName || userNameRef.current;
     if (!uName) return;
 
-    // 初回のみローディング表示（リフレッシュ時は表示しない）
     setLoading((prev) => prev);
 
     try {
@@ -107,30 +118,45 @@ export default function BooksPage() {
     }
   }, [newCat]);
 
-  // ── Optimistic UI: 選出 ────────────────────────────────────────
-  async function handleNominate(book: Book) {
+  // ── 気になるトグル ─────────────────────────────────────────────
+  function toggleInterested(bookId: string) {
+    const userName = userNameRef.current;
+    setInterestedBookIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(bookId)) {
+        next.delete(bookId);
+      } else {
+        next.add(bookId);
+      }
+      localStorage.setItem(`bookclub_interested_${userName}`, JSON.stringify([...next]));
+      return next;
+    });
+  }
+
+  // ── Optimistic UI: 選出（コメント付き） ───────────────────────
+  async function handleNominate(book: Book, comment?: string) {
     if (!currentUser) return;
     const bId = String(book.id);
 
-    // 1. 先にUIを更新（楽観的）
     const prevNomId = myNominationBookId;
     const prevNomIds = [...nominatedBookIds];
     setMyNominationBookId(bId);
     setNominatedBookIds((ids) => [...ids, bId]);
     setActionLoading(bId);
+    setPendingNominateBook(null);
+    setNominationComment("");
 
     try {
       const { error } = await supabase.from("votes").insert({
         action: "選出",
         book_id: bId,
         user_name: currentUser.user_name,
+        comment: comment?.trim() || null,
       });
       if (error) throw error;
       toast.success(`「${book.title}」を選出したよ 👍`);
-      // バックグラウンドで同期（UIはすでに更新済み）
       loadData();
     } catch {
-      // 2. 失敗したらロールバック
       setMyNominationBookId(prevNomId);
       setNominatedBookIds(prevNomIds);
       toast.error("選出に失敗しました。もう一度お試しください");
@@ -144,7 +170,6 @@ export default function BooksPage() {
     if (!currentUser || !myNominationBookId) return;
     const cancelledId = myNominationBookId;
 
-    // 1. 先にUIを更新
     setMyNominationBookId(null);
     setNominatedBookIds((ids) => ids.filter((id) => id !== cancelledId));
     setActionLoading("cancel");
@@ -160,7 +185,6 @@ export default function BooksPage() {
       toast.success("選出をキャンセルしたよ 🙋");
       loadData();
     } catch {
-      // ロールバック
       setMyNominationBookId(cancelledId);
       setNominatedBookIds((ids) => [...ids, cancelledId]);
       toast.error("キャンセルに失敗しました");
@@ -197,20 +221,23 @@ export default function BooksPage() {
   }
 
   const displayBooks = books.filter((b) => !usedBookIds.includes(String(b.id)));
-  const filteredBooks = selectedCat === "すべて"
-    ? displayBooks
-    : displayBooks.filter((b) => b.category === selectedCat);
   const availableCats = Array.from(
     new Set(displayBooks.map((b) => b.category).filter(Boolean) as string[])
   ).sort();
-  const filterOptions = ["すべて", ...availableCats];
+  const interestedCount = displayBooks.filter((b) => interestedBookIds.has(String(b.id))).length;
+  const filterOptions = ["すべて", ...(interestedCount > 0 ? ["気になる"] : []), ...availableCats];
 
-  // Pull to Refresh 用コールバック
+  const filteredBooks =
+    selectedCat === "すべて"
+      ? displayBooks
+      : selectedCat === "気になる"
+        ? displayBooks.filter((b) => interestedBookIds.has(String(b.id)))
+        : displayBooks.filter((b) => b.category === selectedCat);
+
   const handleRefresh = useCallback(async () => {
     await loadData();
   }, [loadData]);
 
-  // ── 初回ローディング: スケルトン表示 ──────────────────────────
   if (loading) {
     return (
       <div>
@@ -224,18 +251,6 @@ export default function BooksPage() {
     <PullToRefreshWrapper onRefresh={handleRefresh}>
       <UserHeader onRefresh={handleRefresh} />
       <NextEventBanner event={nextEvent} />
-
-      {/* Manual link */}
-      <div className="flex justify-end px-4 mt-2">
-        <a
-          href="https://embed.app.guidde.com/playbooks/3mLXzjBGrBBuNNJZ66rV9D?mode=docOnly"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-gray-400 border border-gray-200 px-3 py-1 rounded-full bg-white hover:bg-gray-50 flex items-center gap-1"
-        >
-          ❔ 本の選出・投票の方法
-        </a>
-      </div>
 
       {/* My nomination status */}
       {myNominationBookId && (
@@ -323,10 +338,12 @@ export default function BooksPage() {
               className={cn(
                 "px-4 py-1.5 rounded-full text-xs font-medium border transition-colors",
                 selectedCat === opt
-                  ? "bg-blue-600 text-white border-blue-600"
+                  ? opt === "気になる"
+                    ? "bg-yellow-400 text-yellow-900 border-yellow-400"
+                    : "bg-blue-600 text-white border-blue-600"
                   : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
               )}>
-              {opt}
+              {opt === "気になる" ? `🔖 ${opt}` : opt}
             </button>
           ))}
         </div>
@@ -336,8 +353,10 @@ export default function BooksPage() {
       <div className="px-4 mt-2 pb-4 space-y-4">
         {filteredBooks.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
-            <p className="text-4xl mb-3">📭</p>
-            <p className="text-sm">該当する本がありません</p>
+            <p className="text-4xl mb-3">{selectedCat === "気になる" ? "🔖" : "📭"}</p>
+            <p className="text-sm">
+              {selectedCat === "気になる" ? "気になる本をブックマークしてみよう" : "該当する本がありません"}
+            </p>
           </div>
         ) : (
           (() => {
@@ -356,6 +375,8 @@ export default function BooksPage() {
                     const isOthersNom = !isMyNom && nominatedBookIds.includes(bId);
                     const hasUrl = book.url && book.url.startsWith("http");
                     const isLoading = actionLoading === bId;
+                    const isInterested = interestedBookIds.has(bId);
+                    const isPendingNominate = pendingNominateBook?.id === book.id;
 
                     return (
                       <div key={bId}
@@ -363,23 +384,41 @@ export default function BooksPage() {
                           "bg-white rounded-2xl border p-4 shadow-sm book-card transition-all duration-200",
                           isMyNom ? "border-green-200 bg-green-50/30" : "border-gray-100"
                         )}>
-                        {/* Title */}
-                        <div className="mb-3">
-                          {hasUrl ? (
-                            <a href={book.url!} target="_blank" rel="noopener noreferrer"
-                              className="flex items-start gap-1 text-blue-600 font-bold text-base leading-snug hover:opacity-80 active:opacity-60">
-                              <span className="flex-1">{book.title}</span>
-                              <ExternalLink size={14} className="flex-shrink-0 mt-0.5 opacity-60" />
-                            </a>
-                          ) : (
-                            <p className="font-bold text-base text-gray-900 leading-snug">{book.title}</p>
-                          )}
-                          {book.author && (
-                            <p className="text-xs text-gray-400 mt-1">{book.author}</p>
-                          )}
+                        {/* Title + bookmark button */}
+                        <div className="flex items-start gap-2 mb-3">
+                          <div className="flex-1 min-w-0">
+                            {hasUrl ? (
+                              <a href={book.url!} target="_blank" rel="noopener noreferrer"
+                                className="flex items-start gap-1 text-blue-600 font-bold text-base leading-snug hover:opacity-80 active:opacity-60">
+                                <span className="flex-1">{book.title}</span>
+                                <ExternalLink size={14} className="flex-shrink-0 mt-0.5 opacity-60" />
+                              </a>
+                            ) : (
+                              <p className="font-bold text-base text-gray-900 leading-snug">{book.title}</p>
+                            )}
+                            {book.author && (
+                              <p className="text-xs text-gray-400 mt-1">{book.author}</p>
+                            )}
+                          </div>
+                          {/* 気になるボタン */}
+                          <button
+                            onClick={() => toggleInterested(bId)}
+                            className="flex-shrink-0 p-1.5 rounded-full hover:bg-gray-100 active:scale-90 transition-all"
+                            aria-label={isInterested ? "気になるを解除" : "気になる"}
+                          >
+                            <Bookmark
+                              size={16}
+                              className={cn(
+                                "transition-colors",
+                                isInterested
+                                  ? "fill-yellow-400 text-yellow-400"
+                                  : "text-gray-300"
+                              )}
+                            />
+                          </button>
                         </div>
 
-                        {/* Nomination button */}
+                        {/* Nomination button / inline comment form */}
                         {isMyNom ? (
                           <div className="w-full text-center py-2 bg-green-100 text-green-700 text-sm font-medium rounded-xl border border-green-200">
                             ✅ これを選んでるよ
@@ -388,9 +427,40 @@ export default function BooksPage() {
                           <div className="w-full text-center py-2 bg-gray-50 text-gray-400 text-sm rounded-xl border border-gray-100">
                             🙅 他の人が選んでるよ
                           </div>
+                        ) : isPendingNominate ? (
+                          /* インラインコメントフォーム */
+                          <div className="space-y-2">
+                            <textarea
+                              value={nominationComment}
+                              onChange={(e) => setNominationComment(e.target.value)}
+                              placeholder="推薦コメント（任意）"
+                              rows={2}
+                              autoFocus
+                              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleNominate(book, nominationComment)}
+                                disabled={isLoading || actionLoading !== null}
+                                className="flex-1 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-50"
+                              >
+                                {isLoading ? "選出中..." : "選出する"}
+                              </button>
+                              <button
+                                onClick={() => { setPendingNominateBook(null); setNominationComment(""); }}
+                                className="px-4 py-2 text-sm text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                              >
+                                キャンセル
+                              </button>
+                            </div>
+                          </div>
                         ) : (
                           <button
-                            onClick={() => handleNominate(book)}
+                            onClick={() => {
+                              if (myNominationBookId !== null || actionLoading !== null) return;
+                              setPendingNominateBook(book);
+                              setNominationComment("");
+                            }}
                             disabled={isLoading || myNominationBookId !== null || actionLoading !== null}
                             className={cn(
                               "w-full py-2 rounded-xl text-sm font-medium transition-all active:scale-[0.98]",

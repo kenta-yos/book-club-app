@@ -17,6 +17,7 @@ type NominatedEntry = {
   title: string;
   author: string | null;
   url: string | null;
+  comment: string | null;
   total_points: number;
   voters: { user_name: string; icon: string; points: number }[];
 };
@@ -86,6 +87,7 @@ export default function VotesPage() {
           title: book?.title || "不明",
           author: book?.author || null,
           url: book?.url || null,
+          comment: nom.comment || null,
           total_points: totalPoints,
           voters,
         };
@@ -148,6 +150,7 @@ export default function VotesPage() {
       book_id: bookId,
       user_name: currentUser.user_name,
       points,
+      comment: null,
     };
     const prevMyVotes = [...myVotes];
     const prevNominated = [...nominated];
@@ -338,6 +341,14 @@ export default function VotesPage() {
                       {entry.author && (
                         <p className="text-xs text-gray-400 mt-0.5">{entry.author}</p>
                       )}
+                      {entry.comment && (
+                        <p className={cn(
+                          "text-xs mt-1 italic",
+                          isFirst ? "text-amber-700" : "text-gray-500"
+                        )}>
+                          「{entry.comment}」
+                        </p>
+                      )}
                     </div>
                     <div className="flex-shrink-0 text-right">
                       <p className={cn(
@@ -419,11 +430,16 @@ export default function VotesPage() {
                       <p className="font-bold text-base text-gray-900 leading-snug">{entry.title}</p>
                     )}
                     {entry.author && <p className="text-xs text-gray-400 mt-0.5">{entry.author}</p>}
-                    <div className="mt-2">
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
                       <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full border border-blue-100">
                         推薦: {nominatorIcon} {entry.user_name}
                       </span>
                     </div>
+                    {entry.comment && (
+                      <p className="text-xs text-gray-500 mt-2 italic bg-gray-50 rounded-lg px-3 py-1.5">
+                        「{entry.comment}」
+                      </p>
+                    )}
                   </div>
 
                   {/* Vote buttons */}

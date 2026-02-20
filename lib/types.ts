@@ -62,18 +62,21 @@ export type Database = {
           book_id: string;
           user_name: string;
           points: number | null;
+          comment: string | null;
         };
         Insert: {
           action: "選出" | "投票";
           book_id: string;
           user_name: string;
           points?: number;
+          comment?: string;
         };
         Update: {
           action?: "選出" | "投票";
           book_id?: string;
           user_name?: string;
           points?: number;
+          comment?: string;
         };
       };
       events: {
