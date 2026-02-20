@@ -28,16 +28,16 @@ export function BottomNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors duration-150",
+                "relative flex-1 flex flex-col items-center justify-center py-3.5 gap-1 min-h-[60px] transition-colors duration-150",
                 isActive
                   ? "text-blue-600"
                   : "text-gray-400 hover:text-gray-600"
               )}
             >
-              <span className="text-xl leading-none">{item.emoji}</span>
+              <span className="text-2xl leading-none">{item.emoji}</span>
               <span
                 className={cn(
-                  "text-[10px] font-medium leading-tight",
+                  "text-xs font-medium leading-tight",
                   isActive ? "text-blue-600" : "text-gray-400"
                 )}
               >
