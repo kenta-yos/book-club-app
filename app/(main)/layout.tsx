@@ -6,8 +6,12 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <main className="pb-20">{children}</main>
+    // h-screen + overflow-hidden でページ全体の高さを固定し、
+    // 各ページ内の PullToRefreshWrapper が独立してスクロールできるようにする
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+      <main className="flex-1 overflow-hidden pb-16">
+        {children}
+      </main>
       <BottomNav />
     </div>
   );
