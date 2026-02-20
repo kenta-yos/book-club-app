@@ -1,0 +1,55 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { BookOpen, Vote, History, Settings } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const navItems = [
+  { href: "/books", label: "Books", icon: BookOpen, emoji: "📖" },
+  { href: "/votes", label: "Votes", icon: Vote, emoji: "🗳️" },
+  { href: "/history", label: "History", icon: History, emoji: "📜" },
+  { href: "/admin", label: "Admin", icon: Settings, emoji: "⚙️" },
+];
+
+export function BottomNav() {
+  const pathname = usePathname();
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg">
+      <div
+        className="flex items-stretch"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        {navItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors duration-150",
+                isActive
+                  ? "text-blue-600"
+                  : "text-gray-400 hover:text-gray-600"
+              )}
+            >
+              <span className="text-xl leading-none">{item.emoji}</span>
+              <span
+                className={cn(
+                  "text-[10px] font-medium leading-tight",
+                  isActive ? "text-blue-600" : "text-gray-400"
+                )}
+              >
+                {item.label}
+              </span>
+              {isActive && (
+                <span className="absolute bottom-0 w-8 h-0.5 bg-blue-600 rounded-t-full" />
+              )}
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
