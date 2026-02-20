@@ -72,12 +72,18 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex flex-col">
       {/* Header */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
-        <div className="mb-8 text-center">
-          <div className="mb-4">
-            <Image src="/icons/icon.png" alt="読書会" width={80} height={80} className="rounded-xl" />
+        <div className="mb-10 flex flex-col items-center gap-3">
+          <Image
+            src="/icons/icon.png"
+            alt="読書会"
+            width={96}
+            height={96}
+            className="mix-blend-multiply"
+          />
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-gray-900 mb-1">読書会</h1>
+            <p className="text-gray-400 text-sm">メンバーを選んでください</p>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Book Club</h1>
-          <p className="text-gray-500 text-sm">メンバーを選んでください</p>
         </div>
 
         {/* User grid */}
