@@ -44,7 +44,7 @@ export default function RootLayout({
       </head>
       <body className={inter.className}>
         {children}
-        <Toaster position="bottom-center" richColors />
+        <Toaster position="bottom-center" richColors duration={2000} />
       </body>
     </html>
   );
