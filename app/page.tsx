@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase/client";
 import type { User } from "@/lib/types";
 import { toast } from "sonner";
@@ -72,7 +73,9 @@ export default function LoginPage() {
       {/* Header */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         <div className="mb-8 text-center">
-          <div className="text-6xl mb-4">📚</div>
+          <div className="mb-4">
+            <Image src="/icons/icon.png" alt="読書会" width={80} height={80} className="rounded-xl" />
+          </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Book Club</h1>
           <p className="text-gray-500 text-sm">メンバーを選んでください</p>
         </div>
