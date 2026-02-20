@@ -9,7 +9,7 @@ import { NextEventBanner } from "@/components/NextEventBanner";
 import { BooksPageSkeleton } from "@/components/Skeleton";
 import { PullToRefreshWrapper } from "@/components/PullToRefreshWrapper";
 import { toast } from "sonner";
-import { Plus, X, ExternalLink, Bookmark } from "lucide-react";
+import { Plus, X, ExternalLink, Bookmark, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function BooksPage() {
@@ -37,6 +37,9 @@ export default function BooksPage() {
   const [newCat, setNewCat] = useState("");
   const [newUrl, setNewUrl] = useState("");
   const [submittingBook, setSubmittingBook] = useState(false);
+
+  // ── 削除確認モーダル ───────────────────────────────────────────
+  const [bookToDelete, setBookToDelete] = useState<Book | null>(null);
 
   // ── 推薦コメント: 選出前にコメントを入力するインラインフォーム ──
   const [pendingNominateBook, setPendingNominateBook] = useState<Book | null>(null);
@@ -71,7 +74,7 @@ export default function BooksPage() {
 
     try {
       const [booksRes, catsRes, eventsRes, votesRes] = await Promise.all([
-        supabase.from("books").select("*"),
+        supabase.from("books").select("*").is("deleted_at", null),
         supabase.from("categories").select("name").order("id"),
         supabase.from("events").select("*, books(*)").order("event_date", { ascending: false }),
         supabase.from("votes").select("*"),
@@ -231,19 +234,47 @@ export default function BooksPage() {
     }
   }
 
+  // ── 論理削除（kentaのみ） ───────────────────────────────────────
+  async function handleDeleteBook(book: Book) {
+    setBookToDelete(null);
+    try {
+      const { error } = await supabase
+        .from("books")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", String(book.id));
+      if (error) throw error;
+      toast.success(`「${book.title}」を削除しました`);
+      loadData();
+    } catch {
+      toast.error("削除に失敗しました");
+    }
+  }
+
   const displayBooks = books.filter((b) => !usedBookIds.includes(String(b.id)));
   const availableCats = Array.from(
     new Set(displayBooks.map((b) => b.category).filter(Boolean) as string[])
   ).sort();
   const interestedCount = displayBooks.filter((b) => interestedBookIds.has(String(b.id))).length;
-  const filterOptions = ["すべて", ...(interestedCount > 0 ? ["気になる"] : []), ...availableCats];
+  const newBooksCount = displayBooks.filter(
+    (b) => lastPastEventDate !== null && b.created_at && b.created_at.substring(0, 10) > lastPastEventDate
+  ).length;
+  const filterOptions = [
+    "すべて",
+    ...(newBooksCount > 0 ? ["NEW"] : []),
+    ...(interestedCount > 0 ? ["気になる"] : []),
+    ...availableCats,
+  ];
 
   const filteredBooks =
     selectedCat === "すべて"
       ? displayBooks
-      : selectedCat === "気になる"
-        ? displayBooks.filter((b) => interestedBookIds.has(String(b.id)))
-        : displayBooks.filter((b) => b.category === selectedCat);
+      : selectedCat === "NEW"
+        ? displayBooks.filter(
+            (b) => lastPastEventDate !== null && b.created_at && b.created_at.substring(0, 10) > lastPastEventDate
+          )
+        : selectedCat === "気になる"
+          ? displayBooks.filter((b) => interestedBookIds.has(String(b.id)))
+          : displayBooks.filter((b) => b.category === selectedCat);
 
   const handleRefresh = useCallback(async () => {
     await loadData();
@@ -351,10 +382,14 @@ export default function BooksPage() {
                 selectedCat === opt
                   ? opt === "気になる"
                     ? "bg-yellow-400 text-yellow-900 border-yellow-400"
-                    : "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
+                    : opt === "NEW"
+                      ? "bg-rose-500 text-white border-rose-500"
+                      : "bg-blue-600 text-white border-blue-600"
+                  : opt === "NEW"
+                    ? "bg-white text-rose-500 border-rose-200 hover:border-rose-400"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
               )}>
-              {opt === "気になる" ? `🔖 ${opt}` : opt}
+              {opt === "気になる" ? `🔖 ${opt}` : opt === "NEW" ? `🆕 ${opt}` : opt}
             </button>
           ))}
         </div>
@@ -364,9 +399,15 @@ export default function BooksPage() {
       <div className="px-4 mt-2 pb-4 space-y-4">
         {filteredBooks.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
-            <p className="text-4xl mb-3">{selectedCat === "気になる" ? "🔖" : "📭"}</p>
+            <p className="text-4xl mb-3">
+              {selectedCat === "気になる" ? "🔖" : selectedCat === "NEW" ? "🆕" : "📭"}
+            </p>
             <p className="text-sm">
-              {selectedCat === "気になる" ? "気になる本をブックマークしてみよう" : "該当する本がありません"}
+              {selectedCat === "気になる"
+                ? "気になる本をブックマークしてみよう"
+                : selectedCat === "NEW"
+                  ? "前回以降に追加された本はありません"
+                  : "該当する本がありません"}
             </p>
           </div>
         ) : (
@@ -435,6 +476,16 @@ export default function BooksPage() {
                               )}
                             />
                           </button>
+                          {/* 削除ボタン（kentaのみ） */}
+                          {currentUser?.user_name === "kenta" && (
+                            <button
+                              onClick={() => setBookToDelete(book)}
+                              className="flex-shrink-0 p-1.5 rounded-full hover:bg-red-50 active:scale-90 transition-all"
+                              aria-label="削除"
+                            >
+                              <Trash2 size={14} className="text-gray-300 hover:text-red-400 transition-colors" />
+                            </button>
+                          )}
                         </div>
 
                         {/* Nomination button / inline comment form */}
@@ -499,6 +550,32 @@ export default function BooksPage() {
           })()
         )}
       </div>
+      {/* Delete confirmation modal */}
+      {bookToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-bold text-lg text-gray-900 mb-2">本を削除しますか？</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              「{bookToDelete.title}」をリストから削除します。<br />
+              削除後もデータは保持され、復元できます。
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setBookToDelete(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => handleDeleteBook(bookToDelete)}
+                className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 active:scale-[0.98] transition-all"
+              >
+                削除する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PullToRefreshWrapper>
   );
 }
