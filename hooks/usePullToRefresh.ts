@@ -46,12 +46,9 @@ export function usePullToRefresh(
   }, [onRefresh, threshold]);
 
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
     function onTouchStart(e: TouchEvent) {
-      // スクロール位置が先頭でないと発動しない
-      if (el!.scrollTop > 0) return;
+      // ページ先頭でないと発動しない
+      if (window.scrollY > 0) return;
       startYRef.current = e.touches[0].clientY;
       isPullingRef.current = true;
     }
@@ -68,8 +65,8 @@ export function usePullToRefresh(
         return;
       }
 
-      // スクロール位置が先頭を超えたら無効化
-      if (el!.scrollTop > 0) {
+      // スクロール位置が先頭を離れたら無効化
+      if (window.scrollY > 0) {
         isPullingRef.current = false;
         setPullDistance(0);
         startYRef.current = null;
@@ -102,16 +99,16 @@ export function usePullToRefresh(
       startYRef.current = null;
     }
 
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    el.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
 
     return () => {
-      el.removeEventListener("touchstart", onTouchStart);
-      el.removeEventListener("touchmove", onTouchMove);
-      el.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
     };
-  }, [containerRef, threshold, maxPull, handleRefresh]);
+  }, [threshold, maxPull, handleRefresh]);
 
   return {
     pullDistance,
