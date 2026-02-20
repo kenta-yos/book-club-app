@@ -5,29 +5,15 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import type { EventWithBook } from "@/lib/types";
 import { UserHeader } from "@/components/UserHeader";
+import { HistoryPageSkeleton } from "@/components/Skeleton";
+import { PullToRefreshWrapper } from "@/components/PullToRefreshWrapper";
 import { toast } from "sonner";
 import { ExternalLink } from "lucide-react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Cell,
-  ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer,
 } from "recharts";
 
-const COLORS = [
-  "#1d4ed8",
-  "#7c3aed",
-  "#059669",
-  "#d97706",
-  "#dc2626",
-  "#0891b2",
-  "#4f46e5",
-  "#16a34a",
-];
+const COLORS = ["#1d4ed8","#7c3aed","#059669","#d97706","#dc2626","#0891b2","#4f46e5","#16a34a"];
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -37,21 +23,16 @@ export default function HistoryPage() {
 
   useEffect(() => {
     const stored = sessionStorage.getItem("bookclub_user");
-    if (!stored) {
-      router.replace("/");
-      return;
-    }
+    if (!stored) { router.replace("/"); return; }
     loadData();
   }, [router]);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
     try {
       const { data, error } = await supabase
         .from("events")
         .select("*, books(*)")
         .order("event_date", { ascending: false });
-
       if (error) throw error;
       setAllEvents((data as EventWithBook[]) || []);
     } catch {
@@ -61,58 +42,44 @@ export default function HistoryPage() {
     }
   }, []);
 
-  // Past events only
   const today = new Date().toISOString().split("T")[0];
   const pastEvents = allEvents.filter((e) => e.event_date < today);
-
-  // Year list
-  const years = Array.from(
-    new Set(pastEvents.map((e) => e.event_date.slice(0, 4)))
-  ).sort((a, b) => b.localeCompare(a));
-
+  const years = Array.from(new Set(pastEvents.map((e) => e.event_date.slice(0, 4))))
+    .sort((a, b) => b.localeCompare(a));
   const yearOptions = [...years, "すべて"];
 
-  // Set default year on load
   useEffect(() => {
-    if (years.length > 0 && !selectedYear) {
-      setSelectedYear(years[0]);
-    }
+    if (years.length > 0 && !selectedYear) setSelectedYear(years[0]);
   }, [years, selectedYear]);
 
-  // Filtered display
-  const displayEvents =
-    selectedYear === "すべて" || !selectedYear
-      ? pastEvents
-      : pastEvents.filter((e) => e.event_date.startsWith(selectedYear));
+  const displayEvents = selectedYear === "すべて" || !selectedYear
+    ? pastEvents
+    : pastEvents.filter((e) => e.event_date.startsWith(selectedYear));
 
-  // Category chart data (deduplicated by book_id)
-  const uniqueBooks = Array.from(
-    new Map(pastEvents.map((e) => [e.book_id, e])).values()
-  );
-
+  const uniqueBooks = Array.from(new Map(pastEvents.map((e) => [e.book_id, e])).values());
   const catCounts: Record<string, number> = {};
   uniqueBooks.forEach((e) => {
     const cat = e.books?.category;
-    if (cat && cat !== "None" && cat !== "nan") {
-      catCounts[cat] = (catCounts[cat] || 0) + 1;
-    }
+    if (cat && cat !== "None" && cat !== "nan") catCounts[cat] = (catCounts[cat] || 0) + 1;
   });
-
   const chartData = Object.entries(catCounts)
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count);
 
+  const handleRefresh = useCallback(async () => { await loadData(); }, [loadData]);
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div>
+        <UserHeader />
+        <HistoryPageSkeleton />
       </div>
     );
   }
 
   return (
-    <div>
-      <UserHeader onRefresh={loadData} />
+    <PullToRefreshWrapper onRefresh={handleRefresh}>
+      <UserHeader onRefresh={handleRefresh} />
 
       <div className="px-4 pt-4">
         <h2 className="text-lg font-bold text-gray-900 mb-3">📜 History</h2>
@@ -127,15 +94,12 @@ export default function HistoryPage() {
             {/* Year filter */}
             <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
               {yearOptions.map((year) => (
-                <button
-                  key={year}
-                  onClick={() => setSelectedYear(year)}
+                <button key={year} onClick={() => setSelectedYear(year)}
                   className={`flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                     selectedYear === year
                       ? "bg-blue-600 text-white border-blue-600"
                       : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
-                  }`}
-                >
+                  }`}>
                   {year}
                 </button>
               ))}
@@ -148,44 +112,23 @@ export default function HistoryPage() {
                 if (!book) return null;
                 const dateStr = event.event_date.replace(/-/g, "/");
                 const hasUrl = book.url && book.url.startsWith("http");
-
                 return (
-                  <div
-                    key={`${event.event_date}-${event.book_id}`}
-                    className={`flex items-start gap-3 p-4 ${
-                      idx < displayEvents.length - 1
-                        ? "border-b border-gray-50"
-                        : ""
-                    }`}
-                  >
-                    {/* Date & Author */}
+                  <div key={`${event.event_date}-${event.book_id}`}
+                    className={`flex items-start gap-3 p-4 ${idx < displayEvents.length - 1 ? "border-b border-gray-50" : ""}`}>
                     <div className="w-24 flex-shrink-0">
                       <p className="text-xs text-gray-400 mb-1">{dateStr}</p>
-                      <p className="text-xs text-gray-500 leading-snug break-all">
-                        {book.author || ""}
-                      </p>
+                      <p className="text-xs text-gray-500 leading-snug break-all">{book.author || ""}</p>
                     </div>
-
-                    {/* Title & Category */}
                     <div className="flex-1 min-w-0">
                       <div className="mb-2">
                         {hasUrl ? (
-                          <a
-                            href={book.url!}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-start gap-1 text-blue-600 font-semibold text-sm leading-snug hover:opacity-80"
-                          >
+                          <a href={book.url!} target="_blank" rel="noopener noreferrer"
+                            className="flex items-start gap-1 text-blue-600 font-semibold text-sm leading-snug hover:opacity-80">
                             <span className="flex-1">{book.title}</span>
-                            <ExternalLink
-                              size={12}
-                              className="flex-shrink-0 mt-0.5 opacity-60"
-                            />
+                            <ExternalLink size={12} className="flex-shrink-0 mt-0.5 opacity-60" />
                           </a>
                         ) : (
-                          <p className="font-semibold text-sm text-gray-800 leading-snug">
-                            {book.title}
-                          </p>
+                          <p className="font-semibold text-sm text-gray-800 leading-snug">{book.title}</p>
                         )}
                       </div>
                       {book.category && (
@@ -204,59 +147,28 @@ export default function HistoryPage() {
         {/* Category chart */}
         {chartData.length > 0 && (
           <div className="mb-8">
-            <h3 className="text-sm font-bold text-gray-700 mb-3">
-              📊 カテゴリランキング
-            </h3>
+            <h3 className="text-sm font-bold text-gray-700 mb-3">📊 カテゴリランキング</h3>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
               <ResponsiveContainer width="100%" height={chartData.length * 48 + 20}>
-                <BarChart
-                  data={chartData}
-                  layout="vertical"
-                  margin={{ top: 0, right: 32, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    horizontal={false}
-                    stroke="#f0f0f0"
-                  />
-                  <XAxis
-                    type="number"
-                    hide
-                    domain={[0, Math.max(...chartData.map((d) => d.count)) + 1]}
-                  />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={100}
-                    tick={{ fontSize: 11, fill: "#6b7280" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    formatter={(v) => [`${v} 冊`, "冊数"]}
-                    contentStyle={{
-                      borderRadius: 8,
-                      border: "1px solid #e5e7eb",
-                      fontSize: 12,
-                    }}
-                  />
+                <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 32, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
+                  <XAxis type="number" hide domain={[0, Math.max(...chartData.map((d) => d.count)) + 1]} />
+                  <YAxis type="category" dataKey="name" width={100}
+                    tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
+                  <Tooltip formatter={(v) => [`${v} 冊`, "冊数"]}
+                    contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }} />
                   <Bar dataKey="count" radius={[0, 6, 6, 0]}>
                     {chartData.map((_, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                      />
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              <p className="text-xs text-gray-400 mt-2 text-right">
-                ※ 複数月で読んだ本は1冊としてカウント
-              </p>
+              <p className="text-xs text-gray-400 mt-2 text-right">※ 複数月で読んだ本は1冊としてカウント</p>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </PullToRefreshWrapper>
   );
 }

@@ -34,6 +34,9 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* Pull-to-refresh のため body 自体のスクロールを無効化 */
+    overflow: hidden;
+    height: 100dvh;
   }
 }
 
@@ -44,8 +47,8 @@
 
 /* Smooth scrolling */
 html {
-  scroll-behavior: smooth;
   -webkit-tap-highlight-color: transparent;
+  height: 100%;
 }
 
 /* Bottom nav safe area */
@@ -60,4 +63,30 @@ html {
 
 .book-card:active {
   transform: scale(0.98);
+}
+
+/* スクロールバー非表示 */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* スケルトンアニメーション強化 */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    #f3f4f6 25%,
+    #e9eaec 50%,
+    #f3f4f6 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
 }
