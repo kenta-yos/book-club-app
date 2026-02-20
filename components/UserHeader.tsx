@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
+import Image from "next/image";
 import type { User } from "@/lib/types";
 
 interface UserHeaderProps {
@@ -36,11 +37,24 @@ export function UserHeader({ onRefresh }: UserHeaderProps) {
 
   return (
     <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 sticky top-0 z-40">
-      <div className="flex items-center gap-2">
-        <span className="text-2xl">{user.icon}</span>
-        <span className="font-semibold text-gray-800 text-sm">
-          {user.user_name} さん
-        </span>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <Image
+            src="/icons/icon.png"
+            alt="読書会"
+            width={28}
+            height={28}
+            className="rounded-sm"
+          />
+          <span className="font-bold text-gray-800 text-sm">読書会</span>
+        </div>
+        <span className="text-gray-300">|</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xl">{user.icon}</span>
+          <span className="font-semibold text-gray-600 text-sm">
+            {user.user_name} さん
+          </span>
+        </div>
       </div>
       <button
         onClick={handleRefresh}
