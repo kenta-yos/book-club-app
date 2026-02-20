@@ -319,50 +319,42 @@ export default function VotesPage() {
                 <div
                   key={entry.book_id}
                   className={cn(
-                    "rounded-2xl border p-4 shadow-sm transition-all duration-300",
+                    "rounded-xl border px-3 py-2.5 shadow-sm transition-all duration-300",
                     isFirst ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100"
                   )}
                 >
                   {/* ランク + タイトル + 得点 */}
-                  <div className="flex items-start gap-3 mb-3">
+                  <div className="flex items-center gap-2">
                     <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-black",
+                      "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black",
                       rankBadgeClass
                     )}>
                       {idx + 1}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={cn(
-                        "font-bold text-base leading-snug",
+                        "font-semibold text-sm leading-snug truncate",
                         isFirst ? "text-amber-900" : "text-gray-900"
                       )}>
                         {entry.title}
                       </p>
                       {entry.author && (
-                        <p className="text-xs text-gray-400 mt-0.5">{entry.author}</p>
-                      )}
-                      {entry.comment && (
-                        <p className={cn(
-                          "text-xs mt-1 italic",
-                          isFirst ? "text-amber-700" : "text-gray-500"
-                        )}>
-                          「{entry.comment}」
-                        </p>
+                        <p className="text-[11px] text-gray-400 truncate">{entry.author}</p>
                       )}
                     </div>
                     <div className="flex-shrink-0 text-right">
                       <p className={cn(
-                        "text-3xl font-black leading-none",
+                        "text-2xl font-black leading-none",
                         isFirst ? "text-amber-500" : "text-blue-600"
                       )}>
                         {entry.total_points}
                       </p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">pts</p>
+                      <p className="text-[10px] text-gray-400">pts</p>
                     </div>
                   </div>
 
                   {/* スコアバー */}
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-3">
+                  <div className="h-1 bg-gray-100 rounded-full overflow-hidden mt-2 mb-1.5">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all duration-500",
@@ -374,22 +366,21 @@ export default function VotesPage() {
 
                   {/* 投票者内訳 */}
                   {entry.voters.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1">
                       {entry.voters.map((v) => (
                         <span
                           key={v.user_name}
                           className={cn(
-                            "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
+                            "inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] font-medium",
                             isFirst ? "bg-amber-100 text-amber-800" : "bg-blue-50 text-blue-700"
                           )}
                         >
-                          {v.icon} {v.user_name}
-                          <span className="font-black">+{v.points}</span>
+                          {v.icon} <span className="font-black">+{v.points}</span>
                         </span>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-gray-300 italic">まだ投票なし</p>
+                    <p className="text-[11px] text-gray-300 italic">まだ投票なし</p>
                   )}
                 </div>
               );
