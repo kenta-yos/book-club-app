@@ -477,7 +477,7 @@ export default function BooksPage() {
                             />
                           </button>
                           {/* 削除ボタン（kentaのみ） */}
-                          {currentUser?.user_name === "kenta" && (
+                          {currentUser?.id === "5a639e0f-b32c-41da-ab61-56c91ddb99b3" && (
                             <button
                               onClick={() => setBookToDelete(book)}
                               className="flex-shrink-0 p-1.5 rounded-full hover:bg-red-50 active:scale-90 transition-all"

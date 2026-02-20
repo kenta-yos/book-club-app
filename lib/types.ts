@@ -5,6 +5,7 @@ export type Database = {
     Tables: {
       users: {
         Row: {
+          id: string;
           user_name: string;
           icon: string;
         };
