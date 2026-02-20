@@ -36,6 +36,11 @@ export default function VotesPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const userNameRef = useRef<string>("");
+  const actionLoadingRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    actionLoadingRef.current = actionLoading;
+  }, [actionLoading]);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("bookclub_user");
@@ -45,6 +50,27 @@ export default function VotesPage() {
     userNameRef.current = user.user_name;
     loadData(user.user_name);
   }, [router]);
+
+  // リアルタイム購読: 他ユーザーの投票を即時反映
+  useEffect(() => {
+    const channel = supabase
+      .channel("votes-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "votes" },
+        () => {
+          // 自分がアクション中でなければリロード（楽観的更新と衝突しない）
+          if (!actionLoadingRef.current) {
+            loadData();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadData]);
 
   const loadData = useCallback(async (userName?: string) => {
     const uName = userName || userNameRef.current;
@@ -276,31 +302,84 @@ export default function VotesPage() {
             <p className="text-sm">まだ候補が選ばれていません</p>
           </div>
         ) : (
-          <div className="space-y-1 bg-white rounded-2xl border border-gray-100 p-3 shadow-sm">
+          <div className="space-y-3">
             {nominated.map((entry, idx) => {
-              const isTop = entry.total_points === maxPoints && maxPoints > 0;
-              const voterSummary = entry.voters.map((v) => `${v.icon} ${v.points}`).join(" + ");
+              const isFirst = idx === 0 && entry.total_points > 0;
+              const barWidth = maxPoints > 0 ? Math.round((entry.total_points / maxPoints) * 100) : 0;
+              const rankBadgeClass =
+                idx === 0 ? "bg-amber-400 text-white" :
+                idx === 1 ? "bg-gray-300 text-gray-700" :
+                idx === 2 ? "bg-orange-300 text-white" :
+                "bg-gray-100 text-gray-500";
 
               return (
-                <div key={entry.book_id}>
-                  <div className="flex items-center gap-2 py-2">
-                    <div className="flex items-center gap-1 flex-1 min-w-0">
-                      {isTop && <span className="text-base flex-shrink-0">👑</span>}
-                      <span className={cn("font-bold text-sm truncate", isTop ? "text-orange-700" : "text-gray-800")}>
-                        {entry.title}
-                      </span>
+                <div
+                  key={entry.book_id}
+                  className={cn(
+                    "rounded-2xl border p-4 shadow-sm transition-all duration-300",
+                    isFirst ? "bg-amber-50 border-amber-200" : "bg-white border-gray-100"
+                  )}
+                >
+                  {/* ランク + タイトル + 得点 */}
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className={cn(
+                      "w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-black",
+                      rankBadgeClass
+                    )}>
+                      {idx + 1}
                     </div>
-                    <div className="flex items-baseline gap-0.5 flex-shrink-0">
-                      <span className={cn("text-xl font-bold transition-all duration-300", isTop ? "text-orange-600" : "text-blue-600")}>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn(
+                        "font-bold text-base leading-snug",
+                        isFirst ? "text-amber-900" : "text-gray-900"
+                      )}>
+                        {entry.title}
+                      </p>
+                      {entry.author && (
+                        <p className="text-xs text-gray-400 mt-0.5">{entry.author}</p>
+                      )}
+                    </div>
+                    <div className="flex-shrink-0 text-right">
+                      <p className={cn(
+                        "text-3xl font-black leading-none",
+                        isFirst ? "text-amber-500" : "text-blue-600"
+                      )}>
                         {entry.total_points}
-                      </span>
-                      <span className="text-xs text-gray-400">pts</span>
+                      </p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">pts</p>
                     </div>
                   </div>
-                  {voterSummary && (
-                    <p className="text-xs text-gray-400 pb-1 pl-1">...{voterSummary}</p>
+
+                  {/* スコアバー */}
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-3">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-500",
+                        isFirst ? "bg-amber-400" : "bg-blue-400"
+                      )}
+                      style={{ width: `${barWidth}%` }}
+                    />
+                  </div>
+
+                  {/* 投票者内訳 */}
+                  {entry.voters.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {entry.voters.map((v) => (
+                        <span
+                          key={v.user_name}
+                          className={cn(
+                            "inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium",
+                            isFirst ? "bg-amber-100 text-amber-800" : "bg-blue-50 text-blue-700"
+                          )}
+                        >
+                          {v.icon} {v.user_name}
+                          <span className="font-black">+{v.points}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-300 italic">まだ投票なし</p>
                   )}
-                  {idx < nominated.length - 1 && <hr className="border-gray-100" />}
                 </div>
               );
             })}
