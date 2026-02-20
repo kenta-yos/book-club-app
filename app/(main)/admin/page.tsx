@@ -8,7 +8,9 @@ import { UserHeader } from "@/components/UserHeader";
 import { AdminPageSkeleton } from "@/components/Skeleton";
 import { PullToRefreshWrapper } from "@/components/PullToRefreshWrapper";
 import { toast } from "sonner";
-import { LogOut, AlertTriangle } from "lucide-react";
+import { LogOut, AlertTriangle, ChevronDown, ChevronUp, RotateCcw, Trash2 } from "lucide-react";
+
+const ADMIN_USER_ID = "5a639e0f-b32c-41da-ab61-56c91ddb99b3";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -25,6 +27,13 @@ export default function AdminPage() {
   const [submittingCont, setSubmittingCont] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
+
+  // 削除済み本
+  const [deletedBooks, setDeletedBooks] = useState<Book[]>([]);
+  const [deletedOpen, setDeletedOpen] = useState(false);
+  const [deletedQuery, setDeletedQuery] = useState("");
+  const [deletedActionId, setDeletedActionId] = useState<string | null>(null);
+  const [confirmHardDelete, setConfirmHardDelete] = useState<Book | null>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("bookclub_user");
@@ -50,10 +59,11 @@ export default function AdminPage() {
       const usedIds = allEvents.map((e: any) => String(e.book_id));
       const activeVotes = allVotes.filter((v: any) => !usedIds.includes(String(v.book_id)));
       const nomIds = activeVotes.filter((v: any) => v.action === "選出").map((v: any) => String(v.book_id));
-      const nomBooks = allBooks.filter((b: any) => nomIds.includes(String(b.id)));
+      const nomBooks = allBooks.filter((b: any) => nomIds.includes(String(b.id)) && !b.deleted_at);
       setNominatedBooks(nomBooks);
-      const displayBooks = allBooks.filter((b: any) => !usedIds.includes(String(b.id)));
+      const displayBooks = allBooks.filter((b: any) => !usedIds.includes(String(b.id)) && !b.deleted_at);
       setAllDisplayBooks(displayBooks);
+      setDeletedBooks(allBooks.filter((b: any) => !!b.deleted_at));
       const finalList = nomBooks.length > 0 ? nomBooks : displayBooks;
       if (finalList.length > 0 && !selectedBookId) setSelectedBookId(String(finalList[0].id));
       if (allEvents.length > 0) setLastEvent(allEvents[0] as EventWithBook);
@@ -110,6 +120,41 @@ export default function AdminPage() {
       toast.error("リセットに失敗しました");
     } finally {
       setResetting(false);
+    }
+  }
+
+  async function handleRestore(book: Book) {
+    setDeletedActionId(String(book.id));
+    try {
+      const { error } = await supabase
+        .from("books")
+        .update({ deleted_at: null })
+        .eq("id", String(book.id));
+      if (error) throw error;
+      toast.success(`「${book.title}」を復元しました`);
+      await loadData();
+    } catch {
+      toast.error("復元に失敗しました");
+    } finally {
+      setDeletedActionId(null);
+    }
+  }
+
+  async function handleHardDelete(book: Book) {
+    setConfirmHardDelete(null);
+    setDeletedActionId(String(book.id));
+    try {
+      const { error } = await supabase
+        .from("books")
+        .delete()
+        .eq("id", String(book.id));
+      if (error) throw error;
+      toast.success(`「${book.title}」を完全に削除しました`);
+      await loadData();
+    } catch {
+      toast.error("削除に失敗しました");
+    } finally {
+      setDeletedActionId(null);
     }
   }
 
@@ -215,6 +260,84 @@ export default function AdminPage() {
           </button>
         </div>
 
+        {/* Section: 削除済みの本（adminのみ） */}
+        {currentUser?.id === ADMIN_USER_ID && (
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <button
+              onClick={() => setDeletedOpen((o) => !o)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-bold text-gray-800 hover:bg-gray-50 transition-colors"
+            >
+              <span>🗑️ 削除済みの本 {deletedBooks.length > 0 && <span className="text-gray-400 font-normal">（{deletedBooks.length}冊）</span>}</span>
+              {deletedOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+            </button>
+
+            {deletedOpen && (
+              <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-3">
+                {/* 検索 */}
+                <input
+                  type="text"
+                  value={deletedQuery}
+                  onChange={(e) => setDeletedQuery(e.target.value)}
+                  placeholder="タイトル・著者で検索..."
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+
+                {(() => {
+                  const q = deletedQuery.trim().toLowerCase();
+                  const filtered = deletedBooks.filter((b) => {
+                    if (!q) return true;
+                    return (
+                      b.title.toLowerCase().includes(q) ||
+                      (b.author ?? "").toLowerCase().includes(q)
+                    );
+                  });
+                  if (filtered.length === 0) {
+                    return (
+                      <p className="text-sm text-gray-400 text-center py-4">
+                        {q ? "該当する本が見つかりません" : "削除済みの本はありません"}
+                      </p>
+                    );
+                  }
+                  return (
+                    <ul className="space-y-2">
+                      {filtered.map((book) => {
+                        const bId = String(book.id);
+                        const isActing = deletedActionId === bId;
+                        return (
+                          <li key={bId} className="flex items-center gap-2 py-2 border-b border-gray-50 last:border-0">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-800 truncate">{book.title}</p>
+                              {book.author && (
+                                <p className="text-xs text-gray-400 truncate">{book.author}</p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleRestore(book)}
+                              disabled={isActing}
+                              className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 active:scale-95 transition-all disabled:opacity-50"
+                            >
+                              <RotateCcw size={12} />
+                              復元
+                            </button>
+                            <button
+                              onClick={() => setConfirmHardDelete(book)}
+                              disabled={isActing}
+                              className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 active:scale-95 transition-all disabled:opacity-50"
+                            >
+                              <Trash2 size={12} />
+                              完全削除
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Logout */}
         <div className="pb-4">
           <hr className="border-gray-200 mb-4" />
@@ -225,6 +348,32 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+      {/* 完全削除確認モーダル */}
+      {confirmHardDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
+            <h3 className="font-bold text-lg text-gray-900 mb-2">完全に削除しますか？</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              「{confirmHardDelete.title}」をDBから完全に削除します。<br />
+              この操作は取り消せません。
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmHardDelete(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={() => handleHardDelete(confirmHardDelete)}
+                className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600 active:scale-[0.98] transition-all"
+              >
+                完全削除する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PullToRefreshWrapper>
   );
 }
