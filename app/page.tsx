@@ -49,7 +49,6 @@ export default function LoginPage() {
       // Store user in sessionStorage
       sessionStorage.setItem("bookclub_user", JSON.stringify(user));
 
-      toast.success(`${user.icon} ${user.user_name} さん、こんにちは！`);
       router.push("/books");
     } catch {
       toast.error("ログインに失敗しました");

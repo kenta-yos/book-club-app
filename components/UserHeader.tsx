@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import Image from "next/image";
@@ -14,6 +14,7 @@ export function UserHeader({ onRefresh }: UserHeaderProps) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const headerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("bookclub_user");
@@ -33,11 +34,22 @@ export function UserHeader({ onRefresh }: UserHeaderProps) {
     setTimeout(() => setRefreshing(false), 600);
   }
 
+  function handleScrollToTop() {
+    const scrollContainer = headerRef.current?.parentElement;
+    if (scrollContainer) {
+      scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
   if (!user) return null;
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 sticky top-0 z-40">
-      <div className="flex items-center gap-3">
+    <div ref={headerRef} className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-100 sticky top-0 z-40">
+      <button
+        onClick={handleScrollToTop}
+        className="flex items-center gap-3 active:opacity-60 transition-opacity"
+        aria-label="トップへ戻る"
+      >
         <div className="flex items-center gap-1.5">
           <Image
             src="/icons/icon.png"
@@ -55,7 +67,7 @@ export function UserHeader({ onRefresh }: UserHeaderProps) {
             {user.user_name} さん
           </span>
         </div>
-      </div>
+      </button>
       <button
         onClick={handleRefresh}
         className="p-2 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"

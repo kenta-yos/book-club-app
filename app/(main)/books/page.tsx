@@ -317,11 +317,11 @@ export default function BooksPage() {
 
       {/* Category filter pills */}
       <div className="px-4 mt-4">
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        <div className="flex flex-wrap gap-2">
           {filterOptions.map((opt) => (
             <button key={opt} onClick={() => setSelectedCat(opt)}
               className={cn(
-                "flex-shrink-0 px-4 py-1.5 rounded-full text-xs font-medium border transition-colors",
+                "px-4 py-1.5 rounded-full text-xs font-medium border transition-colors",
                 selectedCat === opt
                   ? "bg-blue-600 text-white border-blue-600"
                   : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"

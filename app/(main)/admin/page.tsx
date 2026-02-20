@@ -152,11 +152,11 @@ export default function AdminPage() {
           {finalList.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-4">選択可能な本がありません</p>
           ) : (
-            <form onSubmit={handleConfirmEvent} className="space-y-3">
+            <form onSubmit={handleConfirmEvent} className="space-y-3 overflow-hidden">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">読書会の日程</label>
                 <input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                  className="w-full max-w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 box-border" required />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">課題本を確定</label>
@@ -183,11 +183,11 @@ export default function AdminPage() {
             <p className="text-xs text-gray-500 mb-3">
               前回の課題本: <span className="font-semibold text-gray-700">{lastEvent.books.title}</span>
             </p>
-            <form onSubmit={handleContinue} className="space-y-3">
+            <form onSubmit={handleContinue} className="space-y-3 overflow-hidden">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">継続開催の日付</label>
                 <input type="date" value={contDate} onChange={(e) => setContDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                  className="w-full max-w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 box-border" required />
               </div>
               <button type="submit" disabled={submittingCont}
                 className="w-full py-2.5 text-sm font-medium text-blue-600 border-2 border-blue-300 rounded-xl hover:bg-blue-50 active:scale-[0.98] transition-all disabled:opacity-50">
