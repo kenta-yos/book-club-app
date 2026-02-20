@@ -38,6 +38,7 @@ export type Database = {
           url: string | null;
           created_by: string | null;
           created_at?: string;
+          deleted_at?: string | null;
         };
         Insert: {
           title: string;
@@ -52,6 +53,7 @@ export type Database = {
           category?: string;
           url?: string;
           created_by?: string;
+          deleted_at?: string | null;
         };
       };
       votes: {
