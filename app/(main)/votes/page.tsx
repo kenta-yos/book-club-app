@@ -38,40 +38,6 @@ export default function VotesPage() {
   const userNameRef = useRef<string>("");
   const actionLoadingRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    actionLoadingRef.current = actionLoading;
-  }, [actionLoading]);
-
-  useEffect(() => {
-    const stored = sessionStorage.getItem("bookclub_user");
-    if (!stored) { router.replace("/"); return; }
-    const user = JSON.parse(stored) as User;
-    setCurrentUser(user);
-    userNameRef.current = user.user_name;
-    loadData(user.user_name);
-  }, [router]);
-
-  // リアルタイム購読: 他ユーザーの投票を即時反映
-  useEffect(() => {
-    const channel = supabase
-      .channel("votes-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "votes" },
-        () => {
-          // 自分がアクション中でなければリロード（楽観的更新と衝突しない）
-          if (!actionLoadingRef.current) {
-            loadData();
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [loadData]);
-
   const loadData = useCallback(async (userName?: string) => {
     const uName = userName || userNameRef.current;
     if (!uName) return;
@@ -133,6 +99,40 @@ export default function VotesPage() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    actionLoadingRef.current = actionLoading;
+  }, [actionLoading]);
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem("bookclub_user");
+    if (!stored) { router.replace("/"); return; }
+    const user = JSON.parse(stored) as User;
+    setCurrentUser(user);
+    userNameRef.current = user.user_name;
+    loadData(user.user_name);
+  }, [router]);
+
+  // リアルタイム購読: 他ユーザーの投票を即時反映
+  useEffect(() => {
+    const channel = supabase
+      .channel("votes-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "votes" },
+        () => {
+          // 自分がアクション中でなければリロード（楽観的更新と衝突しない）
+          if (!actionLoadingRef.current) {
+            loadData();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadData]);
 
   // ── Optimistic UI: 投票 ────────────────────────────────────────
   async function handleVote(bookId: string, points: 1 | 2) {
