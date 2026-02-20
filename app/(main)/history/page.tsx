@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { ExternalLink } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer,
+  LabelList, Legend,
 } from "recharts";
 
 const COLORS = ["#1d4ed8","#7c3aed","#059669","#d97706","#dc2626","#0891b2","#4f46e5","#16a34a"];
@@ -65,6 +66,22 @@ export default function HistoryPage() {
   const chartData = Object.entries(catCounts)
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count);
+
+  // 興味の変遷: 年 × カテゴリ別冊数
+  const trendYears = Array.from(new Set(pastEvents.map((e) => e.event_date.slice(0, 4)))).sort();
+  const trendCategories = Array.from(
+    new Set(uniqueBooks.map((e) => e.books?.category).filter((c): c is string => !!c && c !== "None" && c !== "nan"))
+  ).sort((a, b) => (catCounts[b] ?? 0) - (catCounts[a] ?? 0)); // 多い順
+  const trendData = trendYears.map((year) => {
+    const yearBookMap = new Map(
+      pastEvents.filter((e) => e.event_date.startsWith(year)).map((e) => [e.book_id, e])
+    );
+    const row: Record<string, string | number> = { year };
+    trendCategories.forEach((cat) => {
+      row[cat] = Array.from(yearBookMap.values()).filter((e) => e.books?.category === cat).length;
+    });
+    return row;
+  });
 
   const handleRefresh = useCallback(async () => { await loadData(); }, [loadData]);
 
@@ -150,14 +167,17 @@ export default function HistoryPage() {
             <h3 className="text-sm font-bold text-gray-700 mb-3">📊 カテゴリランキング</h3>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
               <ResponsiveContainer width="100%" height={chartData.length * 48 + 20}>
-                <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 32, left: 0, bottom: 0 }}>
+                <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 40, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
-                  <XAxis type="number" hide domain={[0, Math.max(...chartData.map((d) => d.count)) + 1]} />
+                  <XAxis type="number" hide domain={[0, Math.max(...chartData.map((d) => d.count)) * 1.25 + 1]} />
                   <YAxis type="category" dataKey="name" width={100}
                     tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
                   <Tooltip formatter={(v) => [`${v} 冊`, "冊数"]}
                     contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12 }} />
                   <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                    <LabelList dataKey="count" position="right"
+                      formatter={(v: number) => `${v}冊`}
+                      style={{ fontSize: 11, fill: "#6b7280", fontWeight: 600 }} />
                     {chartData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
@@ -165,6 +185,41 @@ export default function HistoryPage() {
                 </BarChart>
               </ResponsiveContainer>
               <p className="text-xs text-gray-400 mt-2 text-right">※ 複数月で読んだ本は1冊としてカウント</p>
+            </div>
+          </div>
+        )}
+        {/* 興味の変遷グラフ */}
+        {trendData.length >= 2 && trendCategories.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-sm font-bold text-gray-700 mb-1">📈 興味の変遷</h3>
+            <p className="text-xs text-gray-400 mb-3">年ごとのカテゴリ別冊数（積み上げ）</p>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={trendData} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis dataKey="year" tick={{ fontSize: 11, fill: "#6b7280" }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: "#9ca3af" }} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <Tooltip
+                    formatter={(v: number, name: string) => [`${v} 冊`, name]}
+                    contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 11 }}
+                    cursor={{ fill: "rgba(0,0,0,0.03)" }}
+                  />
+                  {trendCategories.map((cat, i) => (
+                    <Bar key={cat} dataKey={cat} stackId="a"
+                      fill={COLORS[i % COLORS.length]}
+                      radius={i === trendCategories.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+              {/* 凡例 */}
+              <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-3">
+                {trendCategories.map((cat, i) => (
+                  <div key={cat} className="flex items-center gap-1">
+                    <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <span className="text-[10px] text-gray-500">{cat}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
