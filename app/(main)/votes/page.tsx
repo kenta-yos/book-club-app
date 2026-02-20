@@ -150,6 +150,7 @@ export default function VotesPage() {
       book_id: bookId,
       user_name: currentUser.user_name,
       points,
+      comment: null,
     };
     const prevMyVotes = [...myVotes];
     const prevNominated = [...nominated];
