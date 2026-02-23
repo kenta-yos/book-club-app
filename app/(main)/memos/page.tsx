@@ -7,16 +7,16 @@ import type { EventWithBook, Memo, User } from "@/lib/types";
 import { UserHeader } from "@/components/UserHeader";
 import { PullToRefreshWrapper } from "@/components/PullToRefreshWrapper";
 import { toast } from "sonner";
-import { Pencil, Check, X } from "lucide-react";
+import { Pencil, Check, X, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function MemosPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentEvent, setCurrentEvent] = useState<EventWithBook | null>(null);
+  const [allEvents, setAllEvents] = useState<EventWithBook[]>([]);
+  const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [memos, setMemos] = useState<Memo[]>([]);
-  const [timing, setTiming] = useState<"before" | "after">("before");
   const [editingContent, setEditingContent] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -30,39 +30,56 @@ export default function MemosPage() {
     const user = JSON.parse(stored) as User;
     setCurrentUser(user);
     userNameRef.current = user.user_name;
-    loadData(user.user_name);
+    loadInitial();
   }, [router]);
 
-  const loadData = useCallback(async (userName?: string) => {
-    const uName = userName || userNameRef.current;
-    if (!uName) return;
+  async function loadInitial() {
     try {
       const [eventsRes, usersRes] = await Promise.all([
-        supabase.from("events").select("*, books(*)").order("event_date", { ascending: false }).limit(1),
+        supabase.from("events").select("*, books(*)").order("event_date", { ascending: false }),
         supabase.from("users").select("user_name, icon").order("user_name"),
       ]);
-      const latestEvent = eventsRes.data?.[0] as EventWithBook | null ?? null;
-      setCurrentEvent(latestEvent);
+      const events = (eventsRes.data as EventWithBook[]) || [];
+      setAllEvents(events);
       setAllUsers(usersRes.data || []);
 
-      if (latestEvent?.id) {
-        const { data: memosData } = await supabase
-          .from("memos")
-          .select("*")
-          .eq("event_id", latestEvent.id)
-          .order("created_at");
-        setMemos(memosData || []);
-      } else {
-        setMemos([]);
+      // デフォルトは最新（先頭）のイベント
+      if (events.length > 0 && events[0].id) {
+        setSelectedEventId(events[0].id);
+        await loadMemos(events[0].id);
       }
     } catch {
       toast.error("データの読み込みに失敗しました");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function loadMemos(eventId: string) {
+    if (!eventId) return;
+    const { data, error } = await supabase
+      .from("memos")
+      .select("*")
+      .eq("event_id", eventId)
+      .order("created_at");
+    if (error) {
+      toast.error("メモの取得に失敗しました");
+      return;
+    }
+    setMemos(data || []);
+  }
+
+  const handleRefresh = useCallback(async () => {
+    setLoading(true);
+    await loadInitial();
   }, []);
 
-  const handleRefresh = useCallback(async () => { await loadData(); }, [loadData]);
+  async function handleEventChange(eventId: string) {
+    setSelectedEventId(eventId);
+    setIsEditing(false);
+    setMemos([]);
+    await loadMemos(eventId);
+  }
 
   function startEdit(existingContent: string) {
     setEditingContent(existingContent);
@@ -70,34 +87,25 @@ export default function MemosPage() {
   }
 
   async function handleSave() {
-    if (!currentUser || !currentEvent?.id) return;
+    if (!currentUser || !selectedEventId) return;
     if (!editingContent.trim()) { toast.warning("メモを入力してください"); return; }
     setSubmitting(true);
     try {
-      // 既存メモを確認してupsert
-      const existing = memos.find(
-        (m) => m.user_name === currentUser.user_name && m.timing === timing
-      );
-      if (existing) {
-        const { error } = await supabase
-          .from("memos")
-          .update({ content: editingContent.trim(), updated_at: new Date().toISOString() })
-          .eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("memos").insert({
-          event_id: currentEvent.id!,
+      const { error } = await supabase.from("memos").upsert(
+        {
+          event_id: selectedEventId,
           user_name: currentUser.user_name,
           content: editingContent.trim(),
-          timing,
-        });
-        if (error) throw error;
-      }
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "event_id,user_name" }
+      );
+      if (error) throw error;
       toast.success("メモを保存しました ✏️");
       setIsEditing(false);
-      await loadData();
-    } catch {
-      toast.error("保存に失敗しました");
+      await loadMemos(selectedEventId);
+    } catch (e: any) {
+      toast.error("保存に失敗しました: " + (e?.message ?? ""));
     } finally {
       setSubmitting(false);
     }
@@ -105,9 +113,7 @@ export default function MemosPage() {
 
   async function handleDelete() {
     if (!currentUser) return;
-    const existing = memos.find(
-      (m) => m.user_name === currentUser.user_name && m.timing === timing
-    );
+    const existing = memos.find((m) => m.user_name === currentUser.user_name);
     if (!existing) return;
     setSubmitting(true);
     try {
@@ -116,7 +122,7 @@ export default function MemosPage() {
       toast.success("メモを削除しました");
       setIsEditing(false);
       setEditingContent("");
-      await loadData();
+      await loadMemos(selectedEventId);
     } catch {
       toast.error("削除に失敗しました");
     } finally {
@@ -137,67 +143,69 @@ export default function MemosPage() {
     );
   }
 
-  const filteredMemos = memos.filter((m) => m.timing === timing);
-  const myMemo = filteredMemos.find((m) => m.user_name === currentUser?.user_name);
-  const otherMemos = filteredMemos.filter((m) => m.user_name !== currentUser?.user_name);
-  const dateStr = currentEvent
-    ? `${currentEvent.event_date.replace(/-/g, "/")}${currentEvent.event_time ? " " + currentEvent.event_time : ""}`
-    : null;
+  const selectedEvent = allEvents.find((e) => e.id === selectedEventId) ?? null;
+  const myMemo = memos.find((m) => m.user_name === currentUser?.user_name);
+  const otherUsers = allUsers.filter((u) => u.user_name !== currentUser?.user_name);
+
+  function formatEventLabel(event: EventWithBook) {
+    const date = event.event_date.replace(/-/g, "/");
+    const time = event.event_time ? ` ${event.event_time}` : "";
+    const title = event.books?.title ?? "未定";
+    return `${date}${time} — ${title}`;
+  }
 
   return (
     <PullToRefreshWrapper onRefresh={handleRefresh}>
       <UserHeader onRefresh={handleRefresh} />
 
-      <div className="px-4 pt-4 space-y-4">
+      <div className="px-4 pt-4 pb-8 space-y-4">
         <h2 className="text-lg font-bold text-gray-900">📝 読書メモ</h2>
 
-        {/* Current event info */}
-        {currentEvent?.books ? (
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3">
-            <p className="text-xs text-blue-500 font-medium">{dateStr}</p>
-            <p className="text-sm font-bold text-blue-800 mt-0.5">{currentEvent.books.title}</p>
+        {allEvents.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <p className="text-4xl mb-3">📭</p>
+            <p className="text-sm">読書会の予定がまだ登録されていません</p>
           </div>
         ) : (
-          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-3">
-            <p className="text-sm text-gray-400">次回の予定がまだ登録されていません</p>
-          </div>
-        )}
-
-        {/* Before / After toggle */}
-        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-          {(["before", "after"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => { setTiming(t); setIsEditing(false); }}
-              className={cn(
-                "flex-1 py-2 rounded-lg text-sm font-medium transition-all",
-                timing === t ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
-              )}
-            >
-              {t === "before" ? "📖 事前メモ" : "💬 事後メモ"}
-            </button>
-          ))}
-        </div>
-
-        {!currentEvent && (
-          <p className="text-sm text-gray-400 text-center py-8">イベントが登録されるとメモを書けます</p>
-        )}
-
-        {currentEvent && (
           <>
+            {/* Event selector */}
+            <div className="relative">
+              <select
+                value={selectedEventId}
+                onChange={(e) => handleEventChange(e.target.value)}
+                className="w-full appearance-none bg-white border border-gray-200 rounded-2xl px-4 py-3 pr-10 text-sm font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+              >
+                {allEvents.map((event) => (
+                  <option key={event.id} value={event.id ?? ""}>
+                    {formatEventLabel(event)}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
+
+            {/* Selected event info */}
+            {selectedEvent?.books && (
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3">
+                <p className="text-xs text-blue-500 font-medium">
+                  {selectedEvent.event_date.replace(/-/g, "/")}
+                  {selectedEvent.event_time ? ` ${selectedEvent.event_time}` : ""}
+                </p>
+                <p className="text-sm font-bold text-blue-800 mt-0.5">{selectedEvent.books.title}</p>
+              </div>
+            )}
+
             {/* My memo */}
             <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                ✏️ 自分のメモ
-              </h3>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">✏️ 自分のメモ</h3>
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                 {isEditing ? (
                   <div className="space-y-2">
                     <textarea
                       value={editingContent}
                       onChange={(e) => setEditingContent(e.target.value)}
-                      placeholder={timing === "before" ? "読む前の感想や期待を書こう..." : "読んだ後の感想・気づきを書こう..."}
-                      rows={5}
+                      placeholder="感想・気づき・読む前の期待など、自由に書こう..."
+                      rows={6}
                       className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                       autoFocus
                     />
@@ -221,7 +229,7 @@ export default function MemosPage() {
                       )}
                       <button
                         onClick={() => setIsEditing(false)}
-                        className="px-3 py-2 text-xs text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                        className="px-3 py-2 text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
                       >
                         <X size={14} />
                       </button>
@@ -229,7 +237,7 @@ export default function MemosPage() {
                   </div>
                 ) : myMemo ? (
                   <div>
-                    <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex items-center gap-1.5">
                         <span className="text-base">{currentUser?.icon}</span>
                         <span className="text-xs font-medium text-gray-700">{currentUser?.user_name}</span>
@@ -252,45 +260,39 @@ export default function MemosPage() {
                     onClick={() => startEdit("")}
                     className="w-full py-3 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-xl hover:border-blue-300 hover:text-blue-500 transition-colors"
                   >
-                    + {timing === "before" ? "事前メモ" : "事後メモ"}を書く
+                    + メモを書く
                   </button>
                 )}
               </div>
             </div>
 
             {/* Others' memos */}
-            {(otherMemos.length > 0 || allUsers.filter((u) => u.user_name !== currentUser?.user_name).length > 0) && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                  👥 みんなのメモ
-                </h3>
-                <div className="space-y-2">
-                  {allUsers
-                    .filter((u) => u.user_name !== currentUser?.user_name)
-                    .map((u) => {
-                      const memo = filteredMemos.find((m) => m.user_name === u.user_name);
-                      return (
-                        <div key={u.user_name} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-                          <div className="flex items-center gap-1.5 mb-2">
-                            <span className="text-base">{u.icon}</span>
-                            <span className="text-xs font-medium text-gray-700">{u.user_name}</span>
-                          </div>
-                          {memo ? (
-                            <>
-                              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
-                              <p className="text-[10px] text-gray-400 mt-2">
-                                {new Date(memo.updated_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                              </p>
-                            </>
-                          ) : (
-                            <p className="text-sm text-gray-300 italic">まだ書いていません</p>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">👥 みんなのメモ</h3>
+              <div className="space-y-2">
+                {otherUsers.map((u) => {
+                  const memo = memos.find((m) => m.user_name === u.user_name);
+                  return (
+                    <div key={u.user_name} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="text-base">{u.icon}</span>
+                        <span className="text-xs font-medium text-gray-700">{u.user_name}</span>
+                      </div>
+                      {memo ? (
+                        <>
+                          <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
+                          <p className="text-[10px] text-gray-400 mt-2">
+                            {new Date(memo.updated_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-gray-300 italic">まだ書いていません</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            )}
+            </div>
           </>
         )}
       </div>

@@ -62,7 +62,6 @@ export default function HistoryPage() {
           .from("memos")
           .select("*")
           .eq("event_id", event.id)
-          .order("timing")
           .order("created_at");
         setMemoCache((prev) => ({ ...prev, [key]: data || [] }));
       } catch {
@@ -164,8 +163,6 @@ export default function HistoryPage() {
                 const isExpanded = expandedMemos.has(key);
                 const isLoadingMemos = memoLoading === key;
                 const eventMemos = memoCache[key] ?? [];
-                const beforeMemos = eventMemos.filter((m) => m.timing === "before");
-                const afterMemos = eventMemos.filter((m) => m.timing === "after");
                 return (
                   <div key={key}
                     className={idx < displayEvents.length - 1 ? "border-b border-gray-50" : ""}>
@@ -218,50 +215,22 @@ export default function HistoryPage() {
 
                     {/* Memos expanded section */}
                     {isExpanded && !isLoadingMemos && (
-                      <div className="px-4 pb-4 space-y-3">
+                      <div className="px-4 pb-4 space-y-2">
                         {eventMemos.length === 0 ? (
                           <p className="text-xs text-gray-400 text-center py-2">このイベントのメモはありません</p>
                         ) : (
-                          <>
-                            {beforeMemos.length > 0 && (
-                              <div>
-                                <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">📖 事前メモ</p>
-                                <div className="space-y-2">
-                                  {beforeMemos.map((memo) => {
-                                    const user = allUsers.find((u) => u.user_name === memo.user_name);
-                                    return (
-                                      <div key={memo.id} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
-                                        <div className="flex items-center gap-1.5 mb-1">
-                                          <span className="text-sm">{user?.icon ?? "👤"}</span>
-                                          <span className="text-xs font-medium text-gray-600">{memo.user_name}</span>
-                                        </div>
-                                        <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
-                                      </div>
-                                    );
-                                  })}
+                          eventMemos.map((memo) => {
+                            const user = allUsers.find((u) => u.user_name === memo.user_name);
+                            return (
+                              <div key={memo.id} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <span className="text-sm">{user?.icon ?? "👤"}</span>
+                                  <span className="text-xs font-medium text-gray-600">{memo.user_name}</span>
                                 </div>
+                                <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
                               </div>
-                            )}
-                            {afterMemos.length > 0 && (
-                              <div>
-                                <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">💬 事後メモ</p>
-                                <div className="space-y-2">
-                                  {afterMemos.map((memo) => {
-                                    const user = allUsers.find((u) => u.user_name === memo.user_name);
-                                    return (
-                                      <div key={memo.id} className="bg-blue-50 rounded-xl p-3 border border-blue-100">
-                                        <div className="flex items-center gap-1.5 mb-1">
-                                          <span className="text-sm">{user?.icon ?? "👤"}</span>
-                                          <span className="text-xs font-medium text-gray-600">{memo.user_name}</span>
-                                        </div>
-                                        <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </>
+                            );
+                          })
                         )}
                       </div>
                     )}

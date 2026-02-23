@@ -106,7 +106,6 @@ export type Database = {
           event_id: string;
           user_name: string;
           content: string;
-          timing: "before" | "after";
           created_at: string;
           updated_at: string;
         };
@@ -114,11 +113,9 @@ export type Database = {
           event_id: string;
           user_name: string;
           content: string;
-          timing: "before" | "after";
         };
         Update: {
           content?: string;
-          timing?: "before" | "after";
           updated_at?: string;
         };
       };
