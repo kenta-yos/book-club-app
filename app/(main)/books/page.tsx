@@ -101,16 +101,8 @@ export default function BooksPage() {
         .map((v: any) => String(v.book_id));
       setNominatedBookIds(nomIds);
 
-      const today = new Date().toISOString().split("T")[0];
-      const futureEvents = allEvents.filter((e: any) => e.event_date >= today);
-      if (futureEvents.length > 0) {
-        const sorted = [...futureEvents].sort((a: any, b: any) =>
-          a.event_date.localeCompare(b.event_date)
-        );
-        setNextEvent(sorted[0] as EventWithBook);
-      } else {
-        setNextEvent(null);
-      }
+      // 最新の登録済み日程を表示（日付のフィルタなし）
+      setNextEvent(allEvents.length > 0 ? (allEvents[0] as EventWithBook) : null);
 
       const pastEvents = allEvents.filter((e: any) => e.event_date < today);
       if (pastEvents.length > 0) {
