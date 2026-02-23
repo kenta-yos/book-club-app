@@ -74,7 +74,7 @@ export default function HistoryPage() {
     setExpandedMemos((prev) => new Set([...prev, key]));
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date(new Date().getTime() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
   const pastEvents = allEvents.filter((e) => e.event_date < today);
   const years = Array.from(new Set(pastEvents.map((e) => e.event_date.slice(0, 4))))
     .sort((a, b) => b.localeCompare(a));
