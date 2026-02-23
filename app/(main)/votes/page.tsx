@@ -293,11 +293,12 @@ export default function VotesPage() {
   const myVotePoints = myVotes.map((v) => v.points);
 
   // 投票済みユーザーごとに 1pt・2pt の使用状況を集計
-  const voterStatusMap = new Map<string, { icon: string; hasOne: boolean; hasTwo: boolean }>();
+  const voterStatusMap = new Map<string, { user_name: string; icon: string; hasOne: boolean; hasTwo: boolean }>();
   nominated.forEach((entry) => {
     entry.voters.forEach((v) => {
-      const cur = voterStatusMap.get(v.user_name) ?? { icon: v.icon, hasOne: false, hasTwo: false };
+      const cur = voterStatusMap.get(v.user_name) ?? { user_name: v.user_name, icon: v.icon, hasOne: false, hasTwo: false };
       voterStatusMap.set(v.user_name, {
+        user_name: v.user_name,
         icon: v.icon,
         hasOne: cur.hasOne || v.points === 1,
         hasTwo: cur.hasTwo || v.points === 2,
