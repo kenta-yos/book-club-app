@@ -88,3 +88,78 @@ html {
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite;
 }
+
+/* ── TipTap リッチテキスト ────────────────────────────── */
+.tiptap-editor {
+  min-height: 160px;
+  padding: 0.75rem;
+  outline: none;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: #1f2937;
+}
+.tiptap-editor p { margin-bottom: 0.5em; }
+.tiptap-editor p:last-child { margin-bottom: 0; }
+.tiptap-editor strong { font-weight: 700; }
+.tiptap-editor em { font-style: italic; }
+.tiptap-editor s { text-decoration: line-through; }
+.tiptap-editor ul {
+  list-style-type: disc;
+  padding-left: 1.4em;
+  margin-bottom: 0.5em;
+}
+.tiptap-editor ol {
+  list-style-type: decimal;
+  padding-left: 1.4em;
+  margin-bottom: 0.5em;
+}
+.tiptap-editor li { margin-bottom: 0.2em; }
+.tiptap-editor h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 0.4em;
+  color: #111827;
+}
+.tiptap-editor blockquote {
+  border-left: 3px solid #d1d5db;
+  padding-left: 0.75em;
+  color: #6b7280;
+  margin: 0.5em 0;
+}
+/* Placeholder */
+.tiptap-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+/* リッチテキスト表示用（読み取り専用） */
+.prose-memo p { margin-bottom: 0.4em; line-height: 1.65; }
+.prose-memo p:last-child { margin-bottom: 0; }
+.prose-memo strong { font-weight: 700; }
+.prose-memo em { font-style: italic; }
+.prose-memo s { text-decoration: line-through; }
+.prose-memo ul {
+  list-style-type: disc;
+  padding-left: 1.4em;
+  margin-bottom: 0.4em;
+}
+.prose-memo ol {
+  list-style-type: decimal;
+  padding-left: 1.4em;
+  margin-bottom: 0.4em;
+}
+.prose-memo li { margin-bottom: 0.15em; }
+.prose-memo h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.3em;
+}
+.prose-memo blockquote {
+  border-left: 3px solid #d1d5db;
+  padding-left: 0.6em;
+  color: #6b7280;
+  margin: 0.3em 0;
+}

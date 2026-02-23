@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import type { EventWithBook, Memo, User } from "@/lib/types";
 import { UserHeader } from "@/components/UserHeader";
 import { PullToRefreshWrapper } from "@/components/PullToRefreshWrapper";
+import { RichTextEditor, RichTextViewer } from "@/components/RichTextEditor";
 import { toast } from "sonner";
 import { Pencil, Check, X, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -43,7 +44,6 @@ export default function MemosPage() {
       setAllEvents(events);
       setAllUsers(usersRes.data || []);
 
-      // デフォルトは最新（先頭）のイベント
       if (events.length > 0 && events[0].id) {
         setSelectedEventId(events[0].id);
         await loadMemos(events[0].id);
@@ -62,10 +62,7 @@ export default function MemosPage() {
       .select("*")
       .eq("event_id", eventId)
       .order("created_at");
-    if (error) {
-      toast.error("メモの取得に失敗しました");
-      return;
-    }
+    if (error) { toast.error("メモの取得に失敗しました"); return; }
     setMemos(data || []);
   }
 
@@ -77,6 +74,7 @@ export default function MemosPage() {
   async function handleEventChange(eventId: string) {
     setSelectedEventId(eventId);
     setIsEditing(false);
+    setEditingContent("");
     setMemos([]);
     await loadMemos(eventId);
   }
@@ -88,14 +86,16 @@ export default function MemosPage() {
 
   async function handleSave() {
     if (!currentUser || !selectedEventId) return;
-    if (!editingContent.trim()) { toast.warning("メモを入力してください"); return; }
+    // 空チェック: タグだけで実質空のケースも弾く
+    const stripped = editingContent.replace(/<[^>]+>/g, "").trim();
+    if (!stripped) { toast.warning("メモを入力してください"); return; }
     setSubmitting(true);
     try {
       const { error } = await supabase.from("memos").upsert(
         {
           event_id: selectedEventId,
           user_name: currentUser.user_name,
-          content: editingContent.trim(),
+          content: editingContent,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "event_id,user_name" }
@@ -158,7 +158,7 @@ export default function MemosPage() {
     <PullToRefreshWrapper onRefresh={handleRefresh}>
       <UserHeader onRefresh={handleRefresh} />
 
-      <div className="px-4 pt-4 pb-8 space-y-4">
+      <div className="px-4 pt-4 pb-10 space-y-4">
         <h2 className="text-lg font-bold text-gray-900">📝 読書メモ</h2>
 
         {allEvents.length === 0 ? (
@@ -186,113 +186,117 @@ export default function MemosPage() {
 
             {/* Selected event info */}
             {selectedEvent?.books && (
-              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3">
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
                 <p className="text-xs text-blue-500 font-medium">
                   {selectedEvent.event_date.replace(/-/g, "/")}
                   {selectedEvent.event_time ? ` ${selectedEvent.event_time}` : ""}
                 </p>
-                <p className="text-sm font-bold text-blue-800 mt-0.5">{selectedEvent.books.title}</p>
+                <p className="text-sm font-bold text-blue-800 mt-0.5 leading-snug">{selectedEvent.books.title}</p>
               </div>
             )}
 
-            {/* My memo */}
+            {/* ── My memo ─────────────────────────────────── */}
             <div>
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">✏️ 自分のメモ</h3>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-                {isEditing ? (
-                  <div className="space-y-2">
-                    <textarea
-                      value={editingContent}
-                      onChange={(e) => setEditingContent(e.target.value)}
-                      placeholder="感想・気づき・読む前の期待など、自由に書こう..."
-                      rows={6}
-                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
+
+              {isEditing ? (
+                <div className="space-y-3">
+                  <RichTextEditor
+                    content={editingContent}
+                    onChange={setEditingContent}
+                    minHeight={200}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleSave}
+                      disabled={submitting}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-3 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-50"
+                    >
+                      <Check size={15} />
+                      {submitting ? "保存中..." : "保存する"}
+                    </button>
+                    {myMemo && (
                       <button
-                        onClick={handleSave}
+                        onClick={handleDelete}
                         disabled={submitting}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-50"
+                        className="px-4 py-3 text-sm text-red-500 border border-red-200 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
                       >
-                        <Check size={14} />
-                        {submitting ? "保存中..." : "保存する"}
+                        削除
                       </button>
-                      {myMemo && (
-                        <button
-                          onClick={handleDelete}
-                          disabled={submitting}
-                          className="px-3 py-2 text-xs text-red-500 border border-red-200 rounded-xl hover:bg-red-50 transition-colors disabled:opacity-50"
-                        >
-                          削除
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setIsEditing(false)}
-                        className="px-3 py-2 text-gray-500 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
+                    )}
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      className="px-3 py-3 text-gray-400 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                    >
+                      <X size={15} />
+                    </button>
                   </div>
-                ) : myMemo ? (
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-base">{currentUser?.icon}</span>
-                        <span className="text-xs font-medium text-gray-700">{currentUser?.user_name}</span>
-                      </div>
-                      <button
-                        onClick={() => startEdit(myMemo.content)}
-                        className="flex items-center gap-1 text-xs text-blue-600 border border-blue-200 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors"
-                      >
-                        <Pencil size={11} />
-                        編集
-                      </button>
+                </div>
+              ) : myMemo ? (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{currentUser?.icon}</span>
+                      <span className="text-sm font-medium text-gray-700">{currentUser?.user_name}</span>
                     </div>
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{myMemo.content}</p>
-                    <p className="text-[10px] text-gray-400 mt-2">
-                      {new Date(myMemo.updated_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                    </p>
+                    <button
+                      onClick={() => startEdit(myMemo.content)}
+                      className="flex items-center gap-1 text-xs text-blue-600 border border-blue-200 px-2.5 py-1.5 rounded-lg hover:bg-blue-50 transition-colors flex-shrink-0"
+                    >
+                      <Pencil size={11} />
+                      編集
+                    </button>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => startEdit("")}
-                    className="w-full py-3 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-xl hover:border-blue-300 hover:text-blue-500 transition-colors"
-                  >
-                    + メモを書く
-                  </button>
-                )}
-              </div>
+                  <RichTextViewer html={myMemo.content} />
+                  <p className="text-[10px] text-gray-400 mt-3">
+                    更新: {new Date(myMemo.updated_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              ) : (
+                <button
+                  onClick={() => startEdit("")}
+                  className="w-full py-5 text-sm text-gray-400 border-2 border-dashed border-gray-200 rounded-2xl hover:border-blue-300 hover:text-blue-500 hover:bg-blue-50/30 transition-all"
+                >
+                  + メモを書く
+                </button>
+              )}
             </div>
 
-            {/* Others' memos */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">👥 みんなのメモ</h3>
-              <div className="space-y-2">
-                {otherUsers.map((u) => {
-                  const memo = memos.find((m) => m.user_name === u.user_name);
-                  return (
-                    <div key={u.user_name} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <span className="text-base">{u.icon}</span>
-                        <span className="text-xs font-medium text-gray-700">{u.user_name}</span>
+            {/* ── Others' memos ──────────────────────────── */}
+            {otherUsers.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">👥 みんなのメモ</h3>
+                <div className="space-y-2">
+                  {otherUsers.map((u) => {
+                    const memo = memos.find((m) => m.user_name === u.user_name);
+                    return (
+                      <div
+                        key={u.user_name}
+                        className={cn(
+                          "bg-white rounded-2xl border shadow-sm p-4 transition-colors",
+                          memo ? "border-gray-100" : "border-dashed border-gray-150"
+                        )}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-xl">{u.icon}</span>
+                          <span className="text-sm font-medium text-gray-700">{u.user_name}</span>
+                        </div>
+                        {memo ? (
+                          <>
+                            <RichTextViewer html={memo.content} />
+                            <p className="text-[10px] text-gray-400 mt-3">
+                              更新: {new Date(memo.updated_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-sm text-gray-300 italic">まだ書いていません</p>
+                        )}
                       </div>
-                      {memo ? (
-                        <>
-                          <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
-                          <p className="text-[10px] text-gray-400 mt-2">
-                            {new Date(memo.updated_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          </p>
-                        </>
-                      ) : (
-                        <p className="text-sm text-gray-300 italic">まだ書いていません</p>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </>
         )}
       </div>

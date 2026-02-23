@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import type { EventWithBook, Memo, User } from "@/lib/types";
+import { RichTextViewer } from "@/components/RichTextEditor";
 import { UserHeader } from "@/components/UserHeader";
 import { HistoryPageSkeleton } from "@/components/Skeleton";
 import { PullToRefreshWrapper } from "@/components/PullToRefreshWrapper";
@@ -227,7 +228,7 @@ export default function HistoryPage() {
                                   <span className="text-sm">{user?.icon ?? "👤"}</span>
                                   <span className="text-xs font-medium text-gray-600">{memo.user_name}</span>
                                 </div>
-                                <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
+                                <RichTextViewer html={memo.content} className="text-xs" />
                               </div>
                             );
                           })
