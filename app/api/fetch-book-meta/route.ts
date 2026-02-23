@@ -75,6 +75,17 @@ async function fetchFromOGP(
 
     const pageTitle = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1];
 
+    // pageTitle は「書名 - 出版社名」「書名｜出版社名」形式が多いので末尾のサフィックスを除去
+    // og:title はクリーンなことが多いためそちらを優先し、pageTitle のみ除去を適用
+    const cleanPageTitle = pageTitle?.trim()
+      ? (pageTitle.trim().replace(/\s*[-|｜]\s*[^-|｜]+$/, "").trim() ||
+          pageTitle.trim())
+      : undefined;
+
+    const title = (ogTitle?.trim() ?? cleanPageTitle ?? "").trim();
+    if (!title) return null;
+
+    // 著者: <meta name="author">
     const authorMeta =
       html.match(
         /<meta[^>]+name=["']author["'][^>]+content=["']([^"']+)["']/i
@@ -83,10 +94,42 @@ async function fetchFromOGP(
         /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']author["']/i
       )?.[1];
 
-    const title = (ogTitle ?? pageTitle ?? "").trim();
-    if (!title) return null;
+    // 著者: JSON-LD (@type: "Book") — 多くのサイトはこちらに著者情報を持つ
+    let authorFromJsonLd = "";
+    const jsonLdBlocks = [
+      ...html.matchAll(
+        /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi
+      ),
+    ];
+    for (const match of jsonLdBlocks) {
+      try {
+        const data = JSON.parse(match[1]);
+        const items: any[] = Array.isArray(data) ? data : [data];
+        for (const item of items) {
+          if (item["@type"] === "Book" && item.author) {
+            const a = item.author;
+            if (typeof a === "string") {
+              authorFromJsonLd = a;
+            } else if (Array.isArray(a)) {
+              authorFromJsonLd = a
+                .map((x: any) => x?.name ?? x ?? "")
+                .filter(Boolean)
+                .join(", ");
+            } else if (a?.name) {
+              authorFromJsonLd = a.name;
+            }
+            if (authorFromJsonLd) break;
+          }
+        }
+        if (authorFromJsonLd) break;
+      } catch {
+        // JSON パースエラーは無視
+      }
+    }
 
-    return { title, author: (authorMeta ?? "").trim() };
+    const author = (authorFromJsonLd || authorMeta || "").trim();
+
+    return { title, author };
   } catch {
     return null;
   }
