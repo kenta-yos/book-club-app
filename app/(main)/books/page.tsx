@@ -104,6 +104,7 @@ export default function BooksPage() {
       // 最新の登録済み日程を表示（日付のフィルタなし）
       setNextEvent(allEvents.length > 0 ? (allEvents[0] as EventWithBook) : null);
 
+      const today = new Date().toISOString().split("T")[0];
       const pastEvents = allEvents.filter((e: any) => e.event_date < today);
       if (pastEvents.length > 0) {
         const latestPast = [...pastEvents].sort((a: any, b: any) =>
