@@ -301,40 +301,32 @@ export default function MemosPage() {
             </div>
 
             {/* ── Others' memos ──────────────────────────── */}
-            {otherUsers.length > 0 && (
-              <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">👥 みんなのメモ</h3>
-                <div className="space-y-2">
-                  {otherUsers.map((u) => {
-                    const memo = memos.find((m) => m.user_name === u.user_name);
-                    return (
-                      <div
-                        key={u.user_name}
-                        className={cn(
-                          "bg-white rounded-2xl border shadow-sm p-4 transition-colors",
-                          memo ? "border-gray-100" : "border-dashed border-gray-150"
-                        )}
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xl">{u.icon}</span>
-                          <span className="text-sm font-medium text-gray-700">{u.user_name}</span>
+            {(() => {
+              const othersWithMemo = otherUsers.filter((u) => memos.some((m) => m.user_name === u.user_name));
+              if (othersWithMemo.length === 0) return null;
+              return (
+                <div>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">👥 みんなのメモ</h3>
+                  <div className="space-y-2">
+                    {othersWithMemo.map((u) => {
+                      const memo = memos.find((m) => m.user_name === u.user_name)!;
+                      return (
+                        <div key={u.user_name} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xl">{u.icon}</span>
+                            <span className="text-sm font-medium text-gray-700">{u.user_name}</span>
+                          </div>
+                          <RichTextViewer html={memo.content} />
+                          <p className="text-[10px] text-gray-400 mt-3">
+                            更新: {new Date(memo.updated_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </p>
                         </div>
-                        {memo ? (
-                          <>
-                            <RichTextViewer html={memo.content} />
-                            <p className="text-[10px] text-gray-400 mt-3">
-                              更新: {new Date(memo.updated_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                            </p>
-                          </>
-                        ) : (
-                          <p className="text-sm text-gray-300 italic">まだ書いていません</p>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </>
         )}
       </div>
