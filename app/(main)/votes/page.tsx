@@ -292,12 +292,19 @@ export default function VotesPage() {
   const maxPoints = nominated.length > 0 ? Math.max(...nominated.map((n) => n.total_points)) : 0;
   const myVotePoints = myVotes.map((v) => v.points);
 
-  // 投票済みユーザーのアイコン一覧（重複排除）
-  const voterIconList = Array.from(
-    new Map(
-      nominated.flatMap((n) => n.voters).map((v) => [v.user_name, v])
-    ).values()
-  );
+  // 投票済みユーザーごとに 1pt・2pt の使用状況を集計
+  const voterStatusMap = new Map<string, { icon: string; hasOne: boolean; hasTwo: boolean }>();
+  nominated.forEach((entry) => {
+    entry.voters.forEach((v) => {
+      const cur = voterStatusMap.get(v.user_name) ?? { icon: v.icon, hasOne: false, hasTwo: false };
+      voterStatusMap.set(v.user_name, {
+        icon: v.icon,
+        hasOne: cur.hasOne || v.points === 1,
+        hasTwo: cur.hasTwo || v.points === 2,
+      });
+    });
+  });
+  const voterIconList = Array.from(voterStatusMap.values());
 
   return (
     <PullToRefreshWrapper onRefresh={handleRefresh}>
@@ -308,13 +315,20 @@ export default function VotesPage() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-bold text-gray-900">🏆 Ranking</h2>
           {voterIconList.length > 0 && (
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-2">
               {voterIconList.map((v) => (
-                <span key={v.user_name} title={v.user_name} className="text-xl leading-none">
-                  {v.icon}
-                </span>
+                <div
+                  key={v.user_name}
+                  className="flex flex-col items-center gap-0.5"
+                  title={`${v.user_name}: ${[v.hasOne && "+1", v.hasTwo && "+2"].filter(Boolean).join(" ")}`}
+                >
+                  <span className="text-xl leading-none">{v.icon}</span>
+                  <div className="flex gap-0.5">
+                    <span className={cn("w-1.5 h-1.5 rounded-full", v.hasOne ? "bg-blue-400" : "bg-gray-200")} />
+                    <span className={cn("w-1.5 h-1.5 rounded-full", v.hasTwo ? "bg-blue-600" : "bg-gray-200")} />
+                  </div>
+                </div>
               ))}
-              <span className="text-xs text-gray-400 ml-1">投票済み</span>
             </div>
           )}
         </div>

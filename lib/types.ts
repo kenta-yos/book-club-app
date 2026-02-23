@@ -100,6 +100,28 @@ export type Database = {
           book_id?: string;
         };
       };
+      memos: {
+        Row: {
+          id: string;
+          event_id: string;
+          user_name: string;
+          content: string;
+          timing: "before" | "after";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          event_id: string;
+          user_name: string;
+          content: string;
+          timing: "before" | "after";
+        };
+        Update: {
+          content?: string;
+          timing?: "before" | "after";
+          updated_at?: string;
+        };
+      };
       access_logs: {
         Row: {
           id?: string;
@@ -123,6 +145,7 @@ export type Book = Database["public"]["Tables"]["books"]["Row"];
 export type Vote = Database["public"]["Tables"]["votes"]["Row"];
 export type Event = Database["public"]["Tables"]["events"]["Row"];
 export type Category = Database["public"]["Tables"]["categories"]["Row"];
+export type Memo = Database["public"]["Tables"]["memos"]["Row"];
 
 export type EventWithBook = Event & {
   books: Book | null;

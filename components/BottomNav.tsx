@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/books", label: "Books", icon: BookOpen, emoji: "📖" },
   { href: "/votes", label: "Votes", icon: Vote, emoji: "🗳️" },
+  { href: "/memos", label: "Memo", icon: History, emoji: "📝" },
   { href: "/history", label: "History", icon: History, emoji: "📜" },
   { href: "/admin", label: "Admin", icon: Settings, emoji: "⚙️" },
 ];

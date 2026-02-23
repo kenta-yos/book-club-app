@@ -3,12 +3,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import type { EventWithBook } from "@/lib/types";
+import type { EventWithBook, Memo, User } from "@/lib/types";
 import { UserHeader } from "@/components/UserHeader";
 import { HistoryPageSkeleton } from "@/components/Skeleton";
 import { PullToRefreshWrapper } from "@/components/PullToRefreshWrapper";
 import { toast } from "sonner";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell, ResponsiveContainer,
   LabelList, Legend, AreaChart, Area,
@@ -21,6 +22,10 @@ export default function HistoryPage() {
   const [allEvents, setAllEvents] = useState<EventWithBook[]>([]);
   const [selectedYear, setSelectedYear] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [expandedMemos, setExpandedMemos] = useState<Set<string>>(new Set());
+  const [memoCache, setMemoCache] = useState<Record<string, Memo[]>>({});
+  const [memoLoading, setMemoLoading] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem("bookclub_user");
@@ -30,18 +35,44 @@ export default function HistoryPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("events")
-        .select("*, books(*)")
-        .order("event_date", { ascending: false });
-      if (error) throw error;
-      setAllEvents((data as EventWithBook[]) || []);
+      const [eventsRes, usersRes] = await Promise.all([
+        supabase.from("events").select("*, books(*)").order("event_date", { ascending: false }),
+        supabase.from("users").select("user_name, icon").order("user_name"),
+      ]);
+      if (eventsRes.error) throw eventsRes.error;
+      setAllEvents((eventsRes.data as EventWithBook[]) || []);
+      setAllUsers(usersRes.data || []);
     } catch {
       toast.error("データの読み込みに失敗しました");
     } finally {
       setLoading(false);
     }
   }, []);
+
+  async function toggleMemos(event: EventWithBook) {
+    const key = event.id ?? `${event.event_date}_${event.book_id}`;
+    if (expandedMemos.has(key)) {
+      setExpandedMemos((prev) => { const s = new Set(prev); s.delete(key); return s; });
+      return;
+    }
+    if (!memoCache[key] && event.id) {
+      setMemoLoading(key);
+      try {
+        const { data } = await supabase
+          .from("memos")
+          .select("*")
+          .eq("event_id", event.id)
+          .order("timing")
+          .order("created_at");
+        setMemoCache((prev) => ({ ...prev, [key]: data || [] }));
+      } catch {
+        toast.error("メモの取得に失敗しました");
+      } finally {
+        setMemoLoading(null);
+      }
+    }
+    setExpandedMemos((prev) => new Set([...prev, key]));
+  }
 
   const today = new Date().toISOString().split("T")[0];
   const pastEvents = allEvents.filter((e) => e.event_date < today);
@@ -129,31 +160,111 @@ export default function HistoryPage() {
                 if (!book) return null;
                 const dateStr = event.event_date.replace(/-/g, "/");
                 const hasUrl = book.url && book.url.startsWith("http");
+                const key = event.id ?? `${event.event_date}_${event.book_id}`;
+                const isExpanded = expandedMemos.has(key);
+                const isLoadingMemos = memoLoading === key;
+                const eventMemos = memoCache[key] ?? [];
+                const beforeMemos = eventMemos.filter((m) => m.timing === "before");
+                const afterMemos = eventMemos.filter((m) => m.timing === "after");
                 return (
-                  <div key={`${event.event_date}-${event.book_id}`}
-                    className={`flex items-start gap-3 p-4 ${idx < displayEvents.length - 1 ? "border-b border-gray-50" : ""}`}>
-                    <div className="w-24 flex-shrink-0">
-                      <p className="text-xs text-gray-400 mb-1">{dateStr}</p>
-                      <p className="text-xs text-gray-500 leading-snug break-all">{book.author || ""}</p>
+                  <div key={key}
+                    className={idx < displayEvents.length - 1 ? "border-b border-gray-50" : ""}>
+                    <div className="flex items-start gap-3 p-4">
+                      <div className="w-24 flex-shrink-0">
+                        <p className="text-xs text-gray-400 mb-1">{dateStr}</p>
+                        <p className="text-xs text-gray-500 leading-snug break-all">{book.author || ""}</p>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="mb-2">
+                          {hasUrl ? (
+                            <a href={book.url!} target="_blank" rel="noopener noreferrer"
+                              className="flex items-start gap-1 text-blue-600 font-semibold text-sm leading-snug hover:opacity-80">
+                              <span className="flex-1">{book.title}</span>
+                              <ExternalLink size={12} className="flex-shrink-0 mt-0.5 opacity-60" />
+                            </a>
+                          ) : (
+                            <p className="font-semibold text-sm text-gray-800 leading-snug">{book.title}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {book.category && (
+                            <span className="inline-block bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-0.5 rounded border border-gray-200">
+                              {book.category}
+                            </span>
+                          )}
+                          {event.id && (
+                            <button
+                              onClick={() => toggleMemos(event)}
+                              className={cn(
+                                "flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded border transition-colors",
+                                isExpanded
+                                  ? "bg-blue-50 text-blue-600 border-blue-200"
+                                  : "bg-gray-50 text-gray-500 border-gray-200 hover:border-blue-200"
+                              )}
+                            >
+                              📝 メモ
+                              {isLoadingMemos ? (
+                                <span className="animate-spin">⏳</span>
+                              ) : isExpanded ? (
+                                <ChevronUp size={10} />
+                              ) : (
+                                <ChevronDown size={10} />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="mb-2">
-                        {hasUrl ? (
-                          <a href={book.url!} target="_blank" rel="noopener noreferrer"
-                            className="flex items-start gap-1 text-blue-600 font-semibold text-sm leading-snug hover:opacity-80">
-                            <span className="flex-1">{book.title}</span>
-                            <ExternalLink size={12} className="flex-shrink-0 mt-0.5 opacity-60" />
-                          </a>
+
+                    {/* Memos expanded section */}
+                    {isExpanded && !isLoadingMemos && (
+                      <div className="px-4 pb-4 space-y-3">
+                        {eventMemos.length === 0 ? (
+                          <p className="text-xs text-gray-400 text-center py-2">このイベントのメモはありません</p>
                         ) : (
-                          <p className="font-semibold text-sm text-gray-800 leading-snug">{book.title}</p>
+                          <>
+                            {beforeMemos.length > 0 && (
+                              <div>
+                                <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">📖 事前メモ</p>
+                                <div className="space-y-2">
+                                  {beforeMemos.map((memo) => {
+                                    const user = allUsers.find((u) => u.user_name === memo.user_name);
+                                    return (
+                                      <div key={memo.id} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                          <span className="text-sm">{user?.icon ?? "👤"}</span>
+                                          <span className="text-xs font-medium text-gray-600">{memo.user_name}</span>
+                                        </div>
+                                        <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            {afterMemos.length > 0 && (
+                              <div>
+                                <p className="text-[10px] font-semibold text-gray-400 uppercase mb-2">💬 事後メモ</p>
+                                <div className="space-y-2">
+                                  {afterMemos.map((memo) => {
+                                    const user = allUsers.find((u) => u.user_name === memo.user_name);
+                                    return (
+                                      <div key={memo.id} className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+                                        <div className="flex items-center gap-1.5 mb-1">
+                                          <span className="text-sm">{user?.icon ?? "👤"}</span>
+                                          <span className="text-xs font-medium text-gray-600">{memo.user_name}</span>
+                                        </div>
+                                        <p className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
-                      {book.category && (
-                        <span className="inline-block bg-gray-100 text-gray-500 text-[10px] font-bold px-2 py-0.5 rounded border border-gray-200">
-                          {book.category}
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
                 );
               })}
