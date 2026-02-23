@@ -9,7 +9,7 @@ import { NextEventBanner } from "@/components/NextEventBanner";
 import { BooksPageSkeleton } from "@/components/Skeleton";
 import { PullToRefreshWrapper } from "@/components/PullToRefreshWrapper";
 import { toast } from "sonner";
-import { Plus, X, ExternalLink, Bookmark, Trash2 } from "lucide-react";
+import { Plus, X, ExternalLink, Bookmark, Trash2, Loader2, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function BooksPage() {
@@ -37,6 +37,7 @@ export default function BooksPage() {
   const [newCat, setNewCat] = useState("");
   const [newUrl, setNewUrl] = useState("");
   const [submittingBook, setSubmittingBook] = useState(false);
+  const [fetchingMeta, setFetchingMeta] = useState(false);
 
   // ── 削除確認モーダル ───────────────────────────────────────────
   const [bookToDelete, setBookToDelete] = useState<Book | null>(null);
@@ -227,6 +228,25 @@ export default function BooksPage() {
     }
   }
 
+  async function handleAutoFill() {
+    if (!newUrl.trim()) return;
+    setFetchingMeta(true);
+    try {
+      const res = await fetch(
+        `/api/fetch-book-meta?url=${encodeURIComponent(newUrl.trim())}`
+      );
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (data.title) setNewTitle(data.title);
+      if (data.author) setNewAuthor(data.author);
+      toast.success("書籍情報を自動入力しました");
+    } catch {
+      toast.error("情報を取得できませんでした。手動で入力してください");
+    } finally {
+      setFetchingMeta(false);
+    }
+  }
+
   // ── 論理削除（kentaのみ） ───────────────────────────────────────
   async function handleDeleteBook(book: Book) {
     setBookToDelete(null);
@@ -322,6 +342,40 @@ export default function BooksPage() {
       {showAddForm && (
         <div className="mx-4 mt-2 p-4 bg-white border border-gray-200 rounded-2xl shadow-sm">
           <form onSubmit={handleAddBook} className="space-y-3">
+            {/* URLから自動入力 */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                出版社・書籍サイトのURL
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={newUrl}
+                  onChange={(e) => setNewUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={handleAutoFill}
+                  disabled={!newUrl.trim() || fetchingMeta}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white text-xs font-medium rounded-lg hover:bg-purple-700 active:scale-[0.97] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {fetchingMeta ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Wand2 size={13} />
+                  )}
+                  {fetchingMeta ? "取得中..." : "自動入力"}
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-1">
+                URLを貼って「自動入力」を押すとタイトル・著者名を取得します
+              </p>
+            </div>
+
+            <div className="border-t border-gray-100" />
+
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">* 書籍タイトル</label>
               <input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
@@ -350,12 +404,6 @@ export default function BooksPage() {
                   </button>
                 ))}
               </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">詳細URL</label>
-              <input type="url" value={newUrl} onChange={(e) => setNewUrl(e.target.value)}
-                placeholder="https://..."
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
             </div>
             <button type="submit" disabled={submittingBook}
               className="w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 active:scale-[0.98] transition-all disabled:opacity-50">
