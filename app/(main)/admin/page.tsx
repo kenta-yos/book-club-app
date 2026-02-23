@@ -22,8 +22,10 @@ export default function AdminPage() {
 
   const [selectedBookId, setSelectedBookId] = useState<string>("");
   const [nextDate, setNextDate] = useState<string>("");
+  const [nextTime, setNextTime] = useState<string>("18:00");
   const [submittingEvent, setSubmittingEvent] = useState(false);
   const [contDate, setContDate] = useState<string>("");
+  const [contTime, setContTime] = useState<string>("18:00");
   const [submittingCont, setSubmittingCont] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -79,7 +81,7 @@ export default function AdminPage() {
     if (!selectedBookId || !nextDate) { toast.warning("日程と課題本を選択してください"); return; }
     setSubmittingEvent(true);
     try {
-      const { error } = await supabase.from("events").insert({ event_date: nextDate, book_id: selectedBookId });
+      const { error } = await supabase.from("events").insert({ event_date: nextDate, event_time: nextTime || null, book_id: selectedBookId });
       if (error) throw error;
       toast.success("次回予告を更新しました 🚀");
       setSelectedBookId("");
@@ -96,7 +98,7 @@ export default function AdminPage() {
     if (!lastEvent || !contDate) return;
     setSubmittingCont(true);
     try {
-      const { error } = await supabase.from("events").insert({ event_date: contDate, book_id: String(lastEvent.book_id) });
+      const { error } = await supabase.from("events").insert({ event_date: contDate, event_time: contTime || null, book_id: String(lastEvent.book_id) });
       if (error) throw error;
       toast.success("継続開催を登録しました 🔁");
       await loadData();
@@ -198,10 +200,17 @@ export default function AdminPage() {
             <p className="text-sm text-gray-400 text-center py-4">選択可能な本がありません</p>
           ) : (
             <form onSubmit={handleConfirmEvent} className="space-y-3 overflow-hidden">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">読書会の日程</label>
-                <input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)}
-                  className="w-full max-w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 box-border" required />
+              <div className="flex gap-2">
+                <div className="flex-1 min-w-0">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">読書会の日程</label>
+                  <input type="date" value={nextDate} onChange={(e) => setNextDate(e.target.value)}
+                    className="w-full max-w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 box-border" required />
+                </div>
+                <div className="w-28 flex-shrink-0">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">時間</label>
+                  <input type="time" value={nextTime} onChange={(e) => setNextTime(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">課題本を確定</label>
@@ -229,10 +238,17 @@ export default function AdminPage() {
               前回の課題本: <span className="font-semibold text-gray-700">{lastEvent.books.title}</span>
             </p>
             <form onSubmit={handleContinue} className="space-y-3 overflow-hidden">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">継続開催の日付</label>
-                <input type="date" value={contDate} onChange={(e) => setContDate(e.target.value)}
-                  className="w-full max-w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 box-border" required />
+              <div className="flex gap-2">
+                <div className="flex-1 min-w-0">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">継続開催の日付</label>
+                  <input type="date" value={contDate} onChange={(e) => setContDate(e.target.value)}
+                    className="w-full max-w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 box-border" required />
+                </div>
+                <div className="w-28 flex-shrink-0">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">時間</label>
+                  <input type="time" value={contTime} onChange={(e) => setContTime(e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
               </div>
               <button type="submit" disabled={submittingCont}
                 className="w-full py-2.5 text-sm font-medium text-blue-600 border-2 border-blue-300 rounded-xl hover:bg-blue-50 active:scale-[0.98] transition-all disabled:opacity-50">

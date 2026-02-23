@@ -86,14 +86,17 @@ export type Database = {
         Row: {
           id?: string;
           event_date: string;
+          event_time?: string | null;
           book_id: string;
         };
         Insert: {
           event_date: string;
+          event_time?: string | null;
           book_id: string;
         };
         Update: {
           event_date?: string;
+          event_time?: string | null;
           book_id?: string;
         };
       };

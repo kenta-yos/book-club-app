@@ -17,12 +17,13 @@ export function NextEventBanner({ event }: NextEventBannerProps) {
 
   const book = event.books;
   const dateStr = event.event_date.replace(/-/g, "/");
+  const timeStr = event.event_time ? ` ${event.event_time}` : "";
   const hasUrl = book?.url && book.url.startsWith("http");
 
   return (
     <div className="mx-4 mt-3 mb-1 p-3 bg-blue-50 border border-blue-100 rounded-xl">
       <p className="text-xs text-blue-500 font-medium mb-1">
-        📅 次回の開催: {dateStr}
+        📅 次回の開催: {dateStr}{timeStr}
       </p>
       {book ? (
         <p className="text-sm font-semibold text-blue-800">

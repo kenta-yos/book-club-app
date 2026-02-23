@@ -26,6 +26,8 @@ export default function VotesPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [nominated, setNominated] = useState<NominatedEntry[]>([]);
+  // 投票セクション用: 初回の選出順序を固定して保持
+  const [nominatedOrdered, setNominatedOrdered] = useState<NominatedEntry[]>([]);
   const [userIconMap, setUserIconMap] = useState<Record<string, string>>({});
 
   // ── Optimistic UI 用state ──────────────────────────────────────
@@ -93,6 +95,8 @@ export default function VotesPage() {
         };
       });
 
+      // ランキング用は点数順、投票セクション用は選出順（固定）
+      setNominatedOrdered([...entries]);
       entries.sort((a, b) => b.total_points - a.total_points);
       setNominated(entries);
     } catch {
@@ -154,24 +158,17 @@ export default function VotesPage() {
     };
     const prevMyVotes = [...myVotes];
     const prevNominated = [...nominated];
+    const prevNominatedOrdered = [...nominatedOrdered];
+
+    const newVoter = { user_name: currentUser.user_name, icon: userIconMap[currentUser.user_name] || "👤", points };
+    const applyVote = (entry: NominatedEntry) =>
+      entry.book_id === bookId
+        ? { ...entry, total_points: entry.total_points + points, voters: [...entry.voters, newVoter] }
+        : entry;
 
     setMyVotes((prev) => [...prev, optimisticVote]);
-    setNominated((prev) =>
-      prev
-        .map((entry) =>
-          entry.book_id === bookId
-            ? {
-                ...entry,
-                total_points: entry.total_points + points,
-                voters: [
-                  ...entry.voters,
-                  { user_name: currentUser.user_name, icon: userIconMap[currentUser.user_name] || "👤", points },
-                ],
-              }
-            : entry
-        )
-        .sort((a, b) => b.total_points - a.total_points)
-    );
+    setNominated((prev) => prev.map(applyVote).sort((a, b) => b.total_points - a.total_points));
+    setNominatedOrdered((prev) => prev.map(applyVote));
 
     try {
       const { error } = await supabase.from("votes").insert({
@@ -188,6 +185,7 @@ export default function VotesPage() {
       // ロールバック
       setMyVotes(prevMyVotes);
       setNominated(prevNominated);
+      setNominatedOrdered(prevNominatedOrdered);
       toast.error("投票に失敗しました。もう一度お試しください");
     } finally {
       setActionLoading(null);
@@ -204,22 +202,21 @@ export default function VotesPage() {
     const cancelledPoints = cancelledVote?.points || 0;
     const prevMyVotes = [...myVotes];
     const prevNominated = [...nominated];
+    const prevNominatedOrdered = [...nominatedOrdered];
+
+    const applyCancel = (entry: NominatedEntry) =>
+      entry.book_id === bookId
+        ? {
+            ...entry,
+            total_points: Math.max(0, entry.total_points - cancelledPoints),
+            voters: entry.voters.filter((v) => v.user_name !== currentUser.user_name),
+          }
+        : entry;
 
     // 楽観的更新
     setMyVotes((prev) => prev.filter((v) => String(v.book_id) !== bookId));
-    setNominated((prev) =>
-      prev
-        .map((entry) =>
-          entry.book_id === bookId
-            ? {
-                ...entry,
-                total_points: Math.max(0, entry.total_points - cancelledPoints),
-                voters: entry.voters.filter((v) => v.user_name !== currentUser.user_name),
-              }
-            : entry
-        )
-        .sort((a, b) => b.total_points - a.total_points)
-    );
+    setNominated((prev) => prev.map(applyCancel).sort((a, b) => b.total_points - a.total_points));
+    setNominatedOrdered((prev) => prev.map(applyCancel));
 
     try {
       const { error } = await supabase
@@ -234,6 +231,7 @@ export default function VotesPage() {
     } catch {
       setMyVotes(prevMyVotes);
       setNominated(prevNominated);
+      setNominatedOrdered(prevNominatedOrdered);
       toast.error("取り消しに失敗しました");
     } finally {
       setActionLoading(null);
@@ -246,18 +244,20 @@ export default function VotesPage() {
 
     const prevMyVotes = [...myVotes];
     const prevNominated = [...nominated];
+    const prevNominatedOrdered = [...nominatedOrdered];
+
+    const applyReset = (entry: NominatedEntry) => ({
+      ...entry,
+      total_points: entry.voters
+        .filter((v) => v.user_name !== currentUser.user_name)
+        .reduce((sum, v) => sum + v.points, 0),
+      voters: entry.voters.filter((v) => v.user_name !== currentUser.user_name),
+    });
 
     // 楽観的更新
     setMyVotes([]);
-    setNominated((prev) =>
-      prev.map((entry) => ({
-        ...entry,
-        total_points: entry.voters
-          .filter((v) => v.user_name !== currentUser.user_name)
-          .reduce((sum, v) => sum + v.points, 0),
-        voters: entry.voters.filter((v) => v.user_name !== currentUser.user_name),
-      })).sort((a, b) => b.total_points - a.total_points)
-    );
+    setNominated((prev) => prev.map(applyReset).sort((a, b) => b.total_points - a.total_points));
+    setNominatedOrdered((prev) => prev.map(applyReset));
 
     try {
       const { error } = await supabase
@@ -271,6 +271,7 @@ export default function VotesPage() {
     } catch {
       setMyVotes(prevMyVotes);
       setNominated(prevNominated);
+      setNominatedOrdered(prevNominatedOrdered);
       toast.error("リセットに失敗しました");
     } finally {
       setActionLoading(null);
@@ -291,13 +292,32 @@ export default function VotesPage() {
   const maxPoints = nominated.length > 0 ? Math.max(...nominated.map((n) => n.total_points)) : 0;
   const myVotePoints = myVotes.map((v) => v.points);
 
+  // 投票済みユーザーのアイコン一覧（重複排除）
+  const voterIconList = Array.from(
+    new Map(
+      nominated.flatMap((n) => n.voters).map((v) => [v.user_name, v])
+    ).values()
+  );
+
   return (
     <PullToRefreshWrapper onRefresh={handleRefresh}>
       <UserHeader onRefresh={handleRefresh} />
 
       {/* Ranking Section */}
       <div className="px-4 pt-4">
-        <h2 className="text-lg font-bold text-gray-900 mb-3">🏆 Ranking</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-gray-900">🏆 Ranking</h2>
+          {voterIconList.length > 0 && (
+            <div className="flex items-center gap-0.5">
+              {voterIconList.map((v) => (
+                <span key={v.user_name} title={v.user_name} className="text-xl leading-none">
+                  {v.icon}
+                </span>
+              ))}
+              <span className="text-xs text-gray-400 ml-1">投票済み</span>
+            </div>
+          )}
+        </div>
 
         {nominated.length === 0 ? (
           <div className="text-center py-12 text-gray-400">
@@ -390,11 +410,11 @@ export default function VotesPage() {
       </div>
 
       {/* Vote Section */}
-      {nominated.length > 0 && (
+      {nominatedOrdered.length > 0 && (
         <div className="px-4 mt-6">
           <h2 className="text-lg font-bold text-gray-900 mb-3">🗳️ 投票</h2>
           <div className="space-y-3">
-            {nominated.map((entry) => {
+            {nominatedOrdered.map((entry) => {
               const myVoteForThis = myVotes.find((v) => String(v.book_id) === entry.book_id);
               const currentPoints = myVoteForThis?.points || 0;
               const isMyNomination = entry.user_name === currentUser?.user_name;
