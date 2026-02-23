@@ -17,7 +17,7 @@ export function UserHeader({ onRefresh }: UserHeaderProps) {
   const headerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("bookclub_user");
+    const stored = localStorage.getItem("bookclub_user");
     if (!stored) {
       router.replace("/");
       return;

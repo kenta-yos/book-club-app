@@ -111,7 +111,7 @@ export default function VotesPage() {
   }, [actionLoading]);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("bookclub_user");
+    const stored = localStorage.getItem("bookclub_user");
     if (!stored) { router.replace("/"); return; }
     const user = JSON.parse(stored) as User;
     setCurrentUser(user);

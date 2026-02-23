@@ -15,7 +15,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     // Check if already logged in
-    const stored = sessionStorage.getItem("bookclub_user");
+    const stored = localStorage.getItem("bookclub_user");
     if (stored) {
       router.replace("/books");
       return;
@@ -46,8 +46,8 @@ export default function LoginPage() {
         .insert({ user_name: user.user_name })
         .then(() => {}); // ignore errors
 
-      // Store user in sessionStorage
-      sessionStorage.setItem("bookclub_user", JSON.stringify(user));
+      // Store user in localStorage
+      localStorage.setItem("bookclub_user", JSON.stringify(user));
 
       router.push("/books");
     } catch {

@@ -38,7 +38,7 @@ export default function AdminPage() {
   const [confirmHardDelete, setConfirmHardDelete] = useState<Book | null>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("bookclub_user");
+    const stored = localStorage.getItem("bookclub_user");
     if (!stored) { router.replace("/"); return; }
     const user = JSON.parse(stored) as User;
     setCurrentUser(user);
@@ -161,7 +161,7 @@ export default function AdminPage() {
   }
 
   function handleLogout() {
-    sessionStorage.removeItem("bookclub_user");
+    localStorage.removeItem("bookclub_user");
     router.replace("/");
   }
 

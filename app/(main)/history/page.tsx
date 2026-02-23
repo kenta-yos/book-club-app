@@ -29,7 +29,7 @@ export default function HistoryPage() {
   const [memoLoading, setMemoLoading] = useState<string | null>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem("bookclub_user");
+    const stored = localStorage.getItem("bookclub_user");
     if (!stored) { router.replace("/"); return; }
     loadData();
   }, [router]);
