@@ -12,6 +12,9 @@ import { toast } from "sonner";
 import { Plus, X, ExternalLink, Bookmark, Trash2, Loader2, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const toJSTDate = (utcStr: string) =>
+  new Date(new Date(utcStr).getTime() + 9 * 60 * 60 * 1000).toISOString().split("T")[0];
+
 export default function BooksPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -105,7 +108,7 @@ export default function BooksPage() {
       // 最新の登録済み日程を表示（日付のフィルタなし）
       setNextEvent(allEvents.length > 0 ? (allEvents[0] as EventWithBook) : null);
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = toJSTDate(new Date().toISOString());
       const pastEvents = allEvents.filter((e: any) => e.event_date < today);
       if (pastEvents.length > 0) {
         const latestPast = [...pastEvents].sort((a: any, b: any) =>
@@ -269,7 +272,7 @@ export default function BooksPage() {
   ).sort();
   const interestedCount = displayBooks.filter((b) => interestedBookIds.has(String(b.id))).length;
   const newBooksCount = displayBooks.filter(
-    (b) => lastPastEventDate !== null && b.created_at && b.created_at.substring(0, 10) > lastPastEventDate
+    (b) => lastPastEventDate !== null && b.created_at && toJSTDate(b.created_at) > lastPastEventDate
   ).length;
   const filterOptions = [
     "すべて",
@@ -283,7 +286,7 @@ export default function BooksPage() {
       ? displayBooks
       : selectedCat === "NEW"
         ? displayBooks.filter(
-            (b) => lastPastEventDate !== null && b.created_at && b.created_at.substring(0, 10) > lastPastEventDate
+            (b) => lastPastEventDate !== null && b.created_at && toJSTDate(b.created_at) > lastPastEventDate
           )
         : selectedCat === "気になる"
           ? displayBooks.filter((b) => interestedBookIds.has(String(b.id)))
@@ -472,7 +475,7 @@ export default function BooksPage() {
                     const isPendingNominate = pendingNominateBook?.id === book.id;
                     const isNew = lastPastEventDate !== null &&
                       book.created_at &&
-                      book.created_at.substring(0, 10) > lastPastEventDate;
+                      toJSTDate(book.created_at) > lastPastEventDate;
 
                     return (
                       <div key={bId}
