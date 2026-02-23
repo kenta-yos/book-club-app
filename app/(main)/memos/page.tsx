@@ -22,8 +22,25 @@ export default function MemosPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [draftStatus, setDraftStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   const userNameRef = useRef("");
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── 下書き自動保存 ────────────────────────────────────────────
+  useEffect(() => {
+    if (!isEditing || !selectedEventId || !currentUser) return;
+    setDraftStatus("saving");
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      localStorage.setItem(
+        `memo_draft_${selectedEventId}_${currentUser.user_name}`,
+        editingContent
+      );
+      setDraftStatus("saved");
+    }, 1500);
+    return () => { if (draftTimerRef.current) clearTimeout(draftTimerRef.current); };
+  }, [editingContent, isEditing, selectedEventId, currentUser]);
 
   useEffect(() => {
     const stored = localStorage.getItem("bookclub_user");
@@ -80,8 +97,22 @@ export default function MemosPage() {
   }
 
   function startEdit(existingContent: string) {
-    setEditingContent(existingContent);
+    const draftKey = `memo_draft_${selectedEventId}_${currentUser?.user_name}`;
+    const draft = localStorage.getItem(draftKey);
+    if (draft && draft !== existingContent) {
+      setEditingContent(draft);
+      toast.info("下書きを復元しました");
+    } else {
+      setEditingContent(existingContent);
+    }
+    setDraftStatus("idle");
     setIsEditing(true);
+  }
+
+  function clearDraft() {
+    if (!selectedEventId || !currentUser) return;
+    localStorage.removeItem(`memo_draft_${selectedEventId}_${currentUser.user_name}`);
+    setDraftStatus("idle");
   }
 
   async function handleSave() {
@@ -101,6 +132,7 @@ export default function MemosPage() {
         { onConflict: "event_id,user_name" }
       );
       if (error) throw error;
+      clearDraft();
       toast.success("メモを保存しました ✏️");
       setIsEditing(false);
       await loadMemos(selectedEventId);
@@ -119,6 +151,7 @@ export default function MemosPage() {
     try {
       const { error } = await supabase.from("memos").delete().eq("id", existing.id);
       if (error) throw error;
+      clearDraft();
       toast.success("メモを削除しました");
       setIsEditing(false);
       setEditingContent("");
@@ -200,12 +233,17 @@ export default function MemosPage() {
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">✏️ 自分のメモ</h3>
 
               {isEditing ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <RichTextEditor
                     content={editingContent}
                     onChange={setEditingContent}
                     minHeight={200}
                   />
+                  {/* 下書きステータス */}
+                  <p className="text-[11px] text-gray-400 text-right h-4">
+                    {draftStatus === "saving" && "下書き保存中..."}
+                    {draftStatus === "saved" && "✓ 下書き保存済み"}
+                  </p>
                   <div className="flex gap-2">
                     <button
                       onClick={handleSave}
@@ -225,7 +263,7 @@ export default function MemosPage() {
                       </button>
                     )}
                     <button
-                      onClick={() => setIsEditing(false)}
+                      onClick={() => { setIsEditing(false); setDraftStatus("idle"); }}
                       className="px-3 py-3 text-gray-400 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
                     >
                       <X size={15} />
